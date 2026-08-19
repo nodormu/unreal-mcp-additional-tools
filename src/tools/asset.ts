@@ -91,7 +91,7 @@ assets = registry.get_assets_by_path('{{directory}}', True) or []
 asset_list = [a for a in assets[:{{limit}}]]
 # validate_assets_with_settings returns (return_code, ValidateAssetsResults) - it does
 # NOT accept a pre-built results object as a third argument. Signature confirmed
-# against UE 5.81; re-check this call if targeting an older engine.
+# against UE 5.8.1; re-check this call if targeting an older engine.
 _, results = subsys.validate_assets_with_settings(asset_list, unreal.ValidateAssetsSettings())
 validator_breakdown = {}
 for key in results.validator_statistics.keys():
