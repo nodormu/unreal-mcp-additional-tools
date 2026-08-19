@@ -6,6 +6,8 @@ An MCP server that **complements Epic's official Unreal Engine MCP server** — 
 
 Run it **alongside** Epic's official server. This repo has been deliberately deduplicated against it, so the two form a clean union with no functional overlap — see [Relationship to Epic's Official Server](#relationship-to-epics-official-server).
 
+> Forked from [sam-david/unreal-mcp](https://github.com/sam-david/unreal-mcp) (MIT). The upstream project is a general-purpose Unreal MCP server; this fork deduplicates its toolset against Epic's official server so both can be connected at once.
+
 ## Relationship to Epic's Official Server
 
 This project began as a general-purpose Unreal MCP server. After Epic shipped an official one, its toolset was deduplicated against Epic's so the two can be connected at the same time without redundant or conflicting tools.
@@ -234,4 +236,4 @@ npm test           # Run tests
 
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE). Original work copyright Sam David; modifications in this fork copyright nodormu.
