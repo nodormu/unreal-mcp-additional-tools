@@ -2,7 +2,7 @@
 
 An MCP server that **complements Epic's official Unreal Engine MCP server** — **78 tools** across **14 subsystems** covering the areas Epic's server doesn't reach: build/cook/package, cinematics, Niagara, automation testing, source control, profiling, World Partition, and project-wide content maintenance.
 
-> **Beta** — This project is under active development and testing. Tools are being validated against UE 5.6. Some tools may not work as expected. Bug reports and contributions are welcome.
+> **Beta** — This project is under active development and testing. Tools are being validated against UE 5.81. Some tools may not work as expected. Bug reports and contributions are welcome.
 
 Run it **alongside** Epic's official server. This repo has been deliberately deduplicated against it, so the two form a clean union with no functional overlap — see [Relationship to Epic's Official Server](#relationship-to-epics-official-server).
 
@@ -168,7 +168,7 @@ Three-layer priority: CLI args > environment variables > config file > defaults.
 ### CLI Arguments
 
 ```bash
-node dist/bin.js --project-path /path/to/project --engine-path /path/to/UE_5.5 --rc-port 30010
+node dist/bin.js --project-path /path/to/project --engine-path /path/to/UE_5.8 --rc-port 30010
 ```
 
 ### Config File
