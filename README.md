@@ -1,19 +1,51 @@
-# unreal-mcp
+# unreal-mcp-additional-tools
 
-The most comprehensive MCP server for Unreal Engine — **127 tools** across **16 subsystems**, with **4 transport layers** and **no mandatory C++ plugin**.
+An MCP server that **complements Epic's official Unreal Engine MCP server** — **78 tools** across **14 subsystems** covering the areas Epic's server doesn't reach: build/cook/package, cinematics, Niagara, automation testing, source control, profiling, World Partition, and project-wide content maintenance.
 
 > **Beta** — This project is under active development and testing. Tools are being validated against UE 5.6. Some tools may not work as expected. Bug reports and contributions are welcome.
 
-## Why This One?
+Run it **alongside** Epic's official server. This repo has been deliberately deduplicated against it, so the two form a clean union with no functional overlap — see [Relationship to Epic's Official Server](#relationship-to-epics-official-server).
 
-| | unreal-mcp | [flopperam](https://github.com/flopperam/unreal-engine-mcp) | [chongdashu](https://github.com/chongdashu/unreal-mcp) | [kvick-games](https://github.com/kvick-games/UnrealMCP) | [ChiR24](https://github.com/ChiR24/Unreal_mcp) |
-|---|---|---|---|---|---|
-| Tools | **127** | ~30 | ~20 | ~5 | 36 |
-| Transports | **4** | 1 | 1 | 1 | 1 |
-| Requires C++ plugin | **No** | Yes | Yes | Yes | Yes |
-| Build/package tools | **Yes** | No | No | No | Partial |
+## Relationship to Epic's Official Server
 
-Most Unreal MCP projects require compiling and installing a custom C++ plugin into your UE project. This one works out of the box by using Unreal's built-in Python and Remote Control plugins — zero-install beyond enabling what already ships with UE.
+This project began as a general-purpose Unreal MCP server. After Epic shipped an official one, its toolset was deduplicated against Epic's so the two can be connected at the same time without redundant or conflicting tools.
+
+### What was removed
+
+Whole categories were dropped **only** where Epic has a genuine 1-call (or trivial 2-call) equivalent:
+
+- **`blueprint` module (12 tools)** — deleted outright. Epic's `BlueprintTools` is a strict superset.
+- **`plugin` module (3 tools)** — deleted outright. Epic's `PluginToolset` is a strict superset.
+- **`actor`, `asset`, and `material`** — trimmed heavily for the same reason, leaving only the tools with no Epic counterpart.
+
+### What was deliberately kept
+
+Some remaining tools have names that sound similar to Epic's, but the behavior differs. These were kept on purpose:
+
+| Tool | Why it isn't a duplicate |
+|------|--------------------------|
+| `apply_material` | Epic's mesh tools set the **asset's** default slot material. This sets a live **actor-instance** override. |
+| `generate_collision` | Epic only does convex-hull generation. Box/sphere/capsule/auto modes have no Epic equivalent. |
+| `set_skeletal_mesh_lod` | Epic's `SkeletalMeshTools` is read-only on LOD count. |
+| `reimport_skeletal_mesh` | Epic has no in-place reimport. |
+| `import_asset` | Epic's import tools are per-asset-type only — no generic or audio import. |
+| `export_asset` | Epic has no asset export. |
+| `validate_assets` | Epic has no data validation tool at all. |
+
+### What was untouched
+
+Entire domains were left fully intact because Epic has no equivalent:
+
+- Build, cook, and packaging
+- Cinematics / Sequencer
+- Niagara VFX
+- Automation testing and Gauntlet
+- Source control (real checkin/checkout/diff, not just read-only flags)
+- Profiling and Unreal Insights traces
+- World Partition
+- Undo/redo
+- Remote Control Presets
+- Project-wide maintenance — `fix_redirectors`, `resave_packages`, `content_audit`, `consolidate_assets`
 
 ## Quick Start
 
@@ -23,11 +55,13 @@ Most Unreal MCP projects require compiling and installing a custom C++ plugin in
 - Unreal Engine 5.x with editor open
 - **Python Editor Script Plugin** enabled (built-in) with **Enable Remote Execution** checked in its settings
 
+No custom C++ plugin required. This server works out of the box using Unreal's built-in Python and Remote Control plugins.
+
 ### Install
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/unreal-mcp.git
-cd unreal-mcp
+git clone https://github.com/YOUR_USERNAME/unreal-mcp-additional-tools.git
+cd unreal-mcp-additional-tools
 npm install
 npm run build
 ```
@@ -36,12 +70,12 @@ npm run build
 
 **Per-project** (from your UE project directory):
 ```bash
-claude mcp add --transport stdio unreal-mcp -- node /path/to/unreal-mcp/dist/bin.js
+claude mcp add --transport stdio unreal-mcp -- node /path/to/unreal-mcp-additional-tools/dist/bin.js
 ```
 
 **Global** (available in all projects):
 ```bash
-claude mcp add --scope user --transport stdio unreal-mcp -- node /path/to/unreal-mcp/dist/bin.js
+claude mcp add --scope user --transport stdio unreal-mcp -- node /path/to/unreal-mcp-additional-tools/dist/bin.js
 ```
 
 Then drop a `.unrealmcp.json` in each UE project:
@@ -60,7 +94,7 @@ Add to `%APPDATA%\Claude\claude_desktop_config.json` (Windows) or `~/Library/App
   "mcpServers": {
     "unreal": {
       "command": "node",
-      "args": ["/path/to/unreal-mcp/dist/bin.js"],
+      "args": ["/path/to/unreal-mcp-additional-tools/dist/bin.js"],
       "env": {
         "UNREAL_MCP_PROJECT_PATH": "/path/to/YourProject.uproject"
       }
@@ -71,50 +105,47 @@ Add to `%APPDATA%\Claude\claude_desktop_config.json` (Windows) or `~/Library/App
 
 ## Tool Modules
 
+78 tools across 14 modules. Module names below are the values accepted by `enabledModules` / `UNREAL_MCP_MODULES`.
+
 | Module | Tools | Description |
 |--------|-------|-------------|
-| **actor** | 10 | Spawn, delete, transform, select, duplicate, tag actors |
-| **asset** | 16 | List, search, import, export, rename, delete, validate assets |
-| **blueprint** | 12 | Create blueprints, add components/variables/functions, graph nodes |
-| **build** | 9 | Build targets, cook content, package, generate project files |
-| **material** | 13 | Create materials/instances, add expressions, wire graphs |
-| **console** | 6 | Execute Python, console commands, screenshots, viewport camera |
-| **sequencer** | 8 | Create sequences, add tracks/bindings, set playback range |
-| **animation** | 6 | Animation blueprints, montages, modifiers, skeletal mesh |
-| **niagara** | 8 | Spawn particle systems, set parameters (float/vector/color/bool) |
-| **editor-utils** | 8 | Undo/redo, LOD generation, collision, lightmap UVs, utility widgets |
-| **testing** | 8 | Automation tests, map check, data validation, Gauntlet |
-| **profiling** | 5 | CSV profiling, Unreal Insights traces, stat commands |
+| **console** | 3 | Execute Python, run console commands, check transport connection status |
+| **actor** | 2 | Duplicate actors, set actor tags |
+| **asset** | 7 | Import/export, data validation, fix redirectors, resave packages, content audit, consolidate duplicates |
+| **build** | 9 | Build targets, cook, package, BuildCookRun, build plugins, BuildGraph, generate project files, clean, parse build status |
+| **material** | 1 | Apply a material to a live actor's mesh component |
+| **sequencer** | 8 | Create sequences, inspect structure, bind actors, add tracks, playback range, framerate, FBX export, Movie Render Queue |
+| **animation** | 6 | Animation blueprints, montages, sequence info, skeletal mesh LODs, reimport, animation modifiers |
+| **niagara** | 8 | Spawn systems at a location or attached, set float/vector/color/bool parameters, reset, reinit |
+| **testing** | 7 | List and run automation tests (by name, category, or all), map check, Gauntlet, fetch results |
 | **source-control** | 6 | Status, checkout, checkin, revert, mark for add, diff |
-| **world-partition** | 4 | Data layers, streaming sources, loaded cells |
-| **remote-control-presets** | 5 | List/get/set preset properties, call preset functions |
-| **plugin** | 3 | List, enable, disable plugins in .uproject |
+| **profiling** | 5 | Start/stop Unreal Insights traces, stat commands, start/stop CSV profiling |
+| **world-partition** | 4 | List data layers, set data layer state, query loaded cells, configure streaming sources |
+| **editor-utils** | 7 | Run editor utility widgets/blueprints, generate collision and lightmap UVs, undo, redo, undo history |
+| **remote-control-presets** | 5 | List and inspect presets, get/set exposed properties, call exposed functions |
 
 ## Architecture
 
 ```
 MCP Client (Claude Code, Claude Desktop, etc.)
   ↕ stdio (MCP protocol)
-unreal-mcp server
-  ↕ 4 transport layers
+unreal-mcp-additional-tools server
+  ↕ transport layers
 Unreal Engine
 ```
 
 ### Transport Layers
 
-| Transport | Protocol | Port | What It Needs |
-|-----------|----------|------|---------------|
-| **Python Remote Execution** | UDP multicast + inverted TCP | 6776 | Python Editor Script Plugin (built-in) |
-| **Remote Control API** | HTTP REST | 30010 | Remote Control API plugin (built-in) |
-| **Plugin Bridge** | TCP, length-prefixed JSON | 55557 | Optional C++ plugin |
-| **Subprocess Runner** | Spawns UAT/UBT processes | N/A | Engine path only |
+| Transport | Protocol | Port | What It Needs | Used by |
+|-----------|----------|------|---------------|---------|
+| **Python Remote Execution** | UDP multicast + inverted TCP | 6776 | Python Editor Script Plugin (built-in) | Most tools |
+| **Subprocess Runner** | Spawns UAT/UBT processes | N/A | Engine path only | Build, cook, package, Gauntlet |
+| **Remote Control API** | HTTP REST | 30010 | Remote Control API plugin (built-in) | Remote Control Presets |
+| **Plugin Bridge** | TCP, length-prefixed JSON | 55557 | Optional C++ plugin | *Currently unused* |
 
-The server probes all transports on startup and tools gracefully degrade. Most tools use Python Remote Execution. Build tools use subprocess. The optional C++ plugin adds deep Blueprint graph manipulation.
+The server probes all transports on startup and tools degrade gracefully. Build tools run through the subprocess runner and don't need the editor open at all.
 
-### Two Paths
-
-- **Core path** (no plugin): Python + Remote Control covers ~95% of tools. Just enable the built-in UE plugins.
-- **Plugin path** (optional): C++ plugin on port 55557 adds K2 node graph manipulation, faster bulk operations, and editor UI integration. Falls back to Python automatically when unavailable.
+The Plugin Bridge client and its `executeWithPluginFallback()` plugin-first/Python-fallback path remain in the codebase, but no tool currently routes through it — its only consumer was the `blueprint` module, which was removed during the dedupe against Epic's server. No C++ plugin ships with this repo.
 
 ## Configuration
 
@@ -147,7 +178,7 @@ Place `.unrealmcp.json` in your project directory or home directory:
   "projectPath": ".",
   "platform": "Win64",
   "configuration": "Development",
-  "enabledModules": ["console", "actor", "asset", "build", "blueprint", "material"]
+  "enabledModules": ["console", "asset", "build", "sequencer", "niagara"]
 }
 ```
 
@@ -168,7 +199,7 @@ Place `.unrealmcp.json` in your project directory or home directory:
 - **Firewall:** Allow UDP port 6766 and TCP port 6776, or temporarily disable Windows Firewall to test.
 - **Multiple adapters:** WSL, Hyper-V, and VPN adapters can all cause multicast to bind to the wrong interface. Disabling unused adapters helps.
 
-### Optional (for Remote Control tools)
+### Optional (for Remote Control Preset tools)
 
 1. Edit > Plugins > enable **Remote Control API**
 2. Restart the editor
@@ -179,9 +210,17 @@ Place `.unrealmcp.json` in your project directory or home directory:
    - Allowed Origins: leave blank or add `127.0.0.1`
    - These take effect immediately, no restart needed
 
-### Optional (for Blueprint graph tools)
+## Other Community Projects
 
-Install the C++ plugin from `plugin/UnrealMCPBridge/` into your project's `Plugins/` directory. This enables `add_graph_node`, `connect_graph_nodes`, and `remove_graph_node`.
+For context, other Unreal MCP implementations in the wild:
+
+| | [flopperam](https://github.com/flopperam/unreal-engine-mcp) | [chongdashu](https://github.com/chongdashu/unreal-mcp) | [kvick-games](https://github.com/kvick-games/UnrealMCP) | [ChiR24](https://github.com/ChiR24/Unreal_mcp) |
+|---|---|---|---|---|
+| Tools | ~30 | ~20 | ~5 | 36 |
+| Requires C++ plugin | Yes | Yes | Yes | Yes |
+| Build/package tools | No | No | No | Partial |
+
+All of them require compiling and installing a custom C++ plugin into your UE project. This one doesn't.
 
 ## Development
 

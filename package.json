@@ -1,7 +1,7 @@
 {
   "name": "unreal-mcp",
   "version": "0.1.0",
-  "description": "The most comprehensive MCP server for Unreal Engine — 120+ tools across 16 subsystems",
+  "description": "MCP server for Unreal Engine — 78 tools across 14 subsystems, complementing Epic's official Unreal MCP server",
   "license": "MIT",
   "type": "module",
   "main": "dist/index.js",

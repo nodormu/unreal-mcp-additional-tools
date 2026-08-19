@@ -4,6 +4,7 @@ dist/
 .env
 .env.*
 *.log
+DEDUPE.md
 
 # OS
 .DS_Store
