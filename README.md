@@ -72,12 +72,12 @@ npm run build
 
 **Per-project** (from your UE project directory):
 ```bash
-claude mcp add --transport stdio unreal-mcp -- node /path/to/unreal-mcp-additional-tools/dist/bin.js
+claude mcp add --transport stdio unreal-extra -- node /path/to/unreal-mcp-additional-tools/dist/bin.js
 ```
 
 **Global** (available in all projects):
 ```bash
-claude mcp add --scope user --transport stdio unreal-mcp -- node /path/to/unreal-mcp-additional-tools/dist/bin.js
+claude mcp add --scope user --transport stdio unreal-extra -- node /path/to/unreal-mcp-additional-tools/dist/bin.js
 ```
 
 Then drop a `.unrealmcp.json` in each UE project:
@@ -94,7 +94,7 @@ Add to `%APPDATA%\Claude\claude_desktop_config.json` (Windows) or `~/Library/App
 ```json
 {
   "mcpServers": {
-    "unreal": {
+    "unreal-extra": {
       "command": "node",
       "args": ["/path/to/unreal-mcp-additional-tools/dist/bin.js"],
       "env": {

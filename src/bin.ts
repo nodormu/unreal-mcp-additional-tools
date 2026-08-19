@@ -10,13 +10,13 @@ async function main() {
 	await server.connect(transport);
 
 	// Log startup info to stderr (stdout is reserved for MCP protocol)
-	console.error("[unreal-mcp] Server started");
-	console.error(`[unreal-mcp] Project: ${config.projectPath || "(not set)"}`);
-	console.error(`[unreal-mcp] Engine: ${config.enginePath || "(not set)"}`);
-	console.error(`[unreal-mcp] Modules: ${config.enabledModules.join(", ")}`);
+	console.error("[unreal-mcp-additional-tools] Server started");
+	console.error(`[unreal-mcp-additional-tools] Project: ${config.projectPath || "(not set)"}`);
+	console.error(`[unreal-mcp-additional-tools] Engine: ${config.enginePath || "(not set)"}`);
+	console.error(`[unreal-mcp-additional-tools] Modules: ${config.enabledModules.join(", ")}`);
 }
 
 main().catch((err) => {
-	console.error("[unreal-mcp] Fatal error:", err);
+	console.error("[unreal-mcp-additional-tools] Fatal error:", err);
 	process.exit(1);
 });

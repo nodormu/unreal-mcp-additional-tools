@@ -1,5 +1,5 @@
 {
-  "name": "unreal-mcp",
+  "name": "unreal-mcp-additional-tools",
   "version": "0.1.0",
   "description": "MCP server for Unreal Engine — 78 tools across 14 subsystems, complementing Epic's official Unreal MCP server",
   "license": "MIT",
@@ -7,7 +7,7 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "unreal-mcp": "dist/bin.js"
+    "unreal-mcp-additional-tools": "dist/bin.js"
   },
   "files": [
     "dist"

@@ -120,7 +120,9 @@ export class ConnectionManager {
 			} catch (error) {
 				// If Python exec fails, fall through to RC if available
 				if (!this._status.remoteControl) throw error;
-				console.error(`[unreal-mcp] Python exec failed, falling back to Remote Control: ${error}`);
+				console.error(
+					`[unreal-mcp-additional-tools] Python exec failed, falling back to Remote Control: ${error}`,
+				);
 			}
 		}
 
@@ -160,11 +162,11 @@ export class ConnectionManager {
 				}
 				// Plugin returned an error — fall through to Python
 				console.error(
-					`[unreal-mcp] Plugin command ${options.pluginCommand} failed: ${response.error}, falling back to Python`,
+					`[unreal-mcp-additional-tools] Plugin command ${options.pluginCommand} failed: ${response.error}, falling back to Python`,
 				);
 			} catch (error) {
 				console.error(
-					`[unreal-mcp] Plugin command ${options.pluginCommand} error: ${error}, falling back to Python`,
+					`[unreal-mcp-additional-tools] Plugin command ${options.pluginCommand} error: ${error}, falling back to Python`,
 				);
 			}
 		}

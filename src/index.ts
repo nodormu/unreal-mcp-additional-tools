@@ -10,7 +10,7 @@ export async function createServer(
 	const config = loadConfig(argv);
 
 	const server = new McpServer({
-		name: "unreal-mcp",
+		name: "unreal-mcp-additional-tools",
 		version: "0.1.0",
 	});
 
