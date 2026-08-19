@@ -4,13 +4,11 @@ import type { UnrealMcpConfig } from "../types.js";
 import { registerActorTools } from "./actor.js";
 import { registerAnimationTools } from "./animation.js";
 import { registerAssetTools } from "./asset.js";
-import { registerBlueprintTools } from "./blueprint.js";
 import { registerBuildTools } from "./build.js";
 import { registerConsoleTools } from "./console.js";
 import { registerEditorUtilsTools } from "./editor-utils.js";
 import { registerMaterialTools } from "./material.js";
 import { registerNiagaraTools } from "./niagara.js";
-import { registerPluginTools } from "./plugin.js";
 import { registerProfilingTools } from "./profiling.js";
 import { registerRemoteControlPresetsTools } from "./remote-control-presets.js";
 import { registerSequencerTools } from "./sequencer.js";
@@ -18,7 +16,9 @@ import { registerSourceControlTools } from "./source-control.js";
 import { registerTestingTools } from "./testing.js";
 import { registerWorldPartitionTools } from "./world-partition.js";
 
-// All 16 tool modules registered
+// 14 tool modules registered (blueprint and plugin modules removed: fully
+// superseded by Epic's official MCP server's BlueprintTools and
+// PluginToolset toolsets when running alongside that server)
 const MODULE_REGISTRARS: Record<
 	string,
 	(server: McpServer, manager: ConnectionManager, config: UnrealMcpConfig) => void
@@ -27,7 +27,6 @@ const MODULE_REGISTRARS: Record<
 	actor: registerActorTools,
 	asset: registerAssetTools,
 	build: registerBuildTools,
-	blueprint: registerBlueprintTools,
 	material: registerMaterialTools,
 	sequencer: registerSequencerTools,
 	animation: registerAnimationTools,
@@ -38,7 +37,6 @@ const MODULE_REGISTRARS: Record<
 	"world-partition": registerWorldPartitionTools,
 	"editor-utils": registerEditorUtilsTools,
 	"remote-control-presets": registerRemoteControlPresetsTools,
-	plugin: registerPluginTools,
 };
 
 /**

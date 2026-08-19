@@ -73,7 +73,6 @@ export const ALL_MODULES = [
 	"actor",
 	"asset",
 	"build",
-	"blueprint",
 	"material",
 	"sequencer",
 	"animation",
@@ -84,7 +83,6 @@ export const ALL_MODULES = [
 	"world-partition",
 	"editor-utils",
 	"remote-control-presets",
-	"plugin",
 ] as const;
 
 export type ModuleName = (typeof ALL_MODULES)[number];

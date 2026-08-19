@@ -10,212 +10,6 @@ export function registerAssetTools(
 	config: UnrealMcpConfig,
 ): void {
 	server.tool(
-		"list_assets",
-		"List assets in a content directory with optional class filter.",
-		{
-			directory: z
-				.string()
-				.default("/Game")
-				.describe("Content directory path (e.g., /Game, /Game/Meshes)"),
-			class_filter: z
-				.string()
-				.optional()
-				.describe("Filter by asset class (e.g., StaticMesh, Material, Blueprint)"),
-			recursive: z.boolean().default(true).describe("Include subdirectories"),
-		},
-		async ({ directory, class_filter, recursive }) => {
-			manager.requireEditor();
-			const script = inlineScript(
-				`import unreal
-import json
-registry = unreal.AssetRegistryHelpers.get_asset_registry()
-path = '{{directory}}'
-recursive = {{recursive}}
-assets = registry.get_assets_by_path(path, recursive) or []
-class_filter = '{{class_filter}}'
-results = []
-for a in assets:
-    cls = str(a.asset_class_path.asset_name) if hasattr(a, 'asset_class_path') else str(a.asset_class)
-    if class_filter and class_filter not in cls:
-        continue
-    results.append({
-        "name": str(a.asset_name),
-        "class": cls,
-        "path": str(a.package_name) + '.' + str(a.asset_name),
-        "package": str(a.package_name)
-    })
-print(json.dumps(results[:500], indent=2))`,
-				{ directory, class_filter: class_filter || "", recursive: recursive ? "True" : "False" },
-			);
-			const result = await manager.runPython(script);
-			return { content: [{ type: "text", text: result }] };
-		},
-	);
-
-	server.tool(
-		"search_assets",
-		"Search for assets by name, class, or tag.",
-		{
-			query: z.string().describe("Search query (asset name substring)"),
-			class_filter: z.string().optional().describe("Filter by asset class"),
-		},
-		async ({ query, class_filter }) => {
-			manager.requireEditor();
-			const script = inlineScript(
-				`import unreal
-import json
-registry = unreal.AssetRegistryHelpers.get_asset_registry()
-filt = unreal.ARFilter()
-class_filter = '{{class_filter}}'
-if class_filter:
-    filt.class_paths = [unreal.TopLevelAssetPath('/Script/Engine', class_filter)]
-assets = registry.get_assets(filt) or []
-query = '{{query}}'.lower()
-results = []
-for a in assets:
-    name = str(a.asset_name)
-    if query in name.lower():
-        cls = str(a.asset_class_path.asset_name) if hasattr(a, 'asset_class_path') else str(a.asset_class)
-        results.append({"name": name, "class": cls, "path": str(a.package_name) + '.' + name})
-        if len(results) >= 100:
-            break
-print(json.dumps(results, indent=2))`,
-				{ query, class_filter: class_filter || "" },
-			);
-			const result = await manager.runPython(script);
-			return { content: [{ type: "text", text: result }] };
-		},
-	);
-
-	server.tool(
-		"get_asset_info",
-		"Get detailed metadata for an asset.",
-		{
-			asset_path: z.string().describe("Asset path (e.g., /Game/Meshes/MyMesh.MyMesh)"),
-		},
-		async ({ asset_path }) => {
-			manager.requireEditor();
-			const script = inlineScript(
-				`import unreal
-import json
-asset = unreal.EditorAssetLibrary.load_asset('{{asset_path}}')
-if asset:
-    result = {
-        "name": asset.get_name(),
-        "class": asset.get_class().get_name(),
-        "path": asset.get_path_name(),
-        "outer": asset.get_outer().get_name() if asset.get_outer() else None,
-        "package": str(asset.get_outermost().get_name()),
-    }
-    print(json.dumps(result, indent=2))
-else:
-    print(json.dumps({"error": "Asset not found: {{asset_path}}"}))`,
-				{ asset_path },
-			);
-			const result = await manager.runPython(script);
-			return { content: [{ type: "text", text: result }] };
-		},
-	);
-
-	server.tool(
-		"get_asset_references",
-		"Get the dependency and referencer graph for an asset.",
-		{
-			asset_path: z.string().describe("Asset package path (e.g., /Game/Meshes/MyMesh)"),
-			direction: z.enum(["dependencies", "referencers", "both"]).default("both"),
-		},
-		async ({ asset_path, direction }) => {
-			manager.requireEditor();
-			const script = inlineScript(
-				`import unreal
-import json
-registry = unreal.AssetRegistryHelpers.get_asset_registry()
-path = '{{asset_path}}'
-result = {}
-if '${direction}' in ('dependencies', 'both'):
-    deps = registry.get_dependencies(path)
-    result['dependencies'] = [str(d) for d in deps] if deps else []
-if '${direction}' in ('referencers', 'both'):
-    refs = registry.get_referencers(path)
-    result['referencers'] = [str(r) for r in refs] if refs else []
-print(json.dumps(result, indent=2))`,
-				{ asset_path },
-			);
-			const result = await manager.runPython(script);
-			return { content: [{ type: "text", text: result }] };
-		},
-	);
-
-	server.tool(
-		"rename_asset",
-		"Rename or move an asset.",
-		{
-			source_path: z.string().describe("Current asset path"),
-			destination_path: z.string().describe("New asset path"),
-		},
-		async ({ source_path, destination_path }) => {
-			manager.requireEditor();
-			const script = inlineScript(
-				`import unreal
-import json
-success = unreal.EditorAssetLibrary.rename_asset('{{source_path}}', '{{destination_path}}')
-print(json.dumps({"success": success}))`,
-				{ source_path, destination_path },
-			);
-			const result = await manager.runPython(script);
-			return { content: [{ type: "text", text: result }] };
-		},
-	);
-
-	server.tool(
-		"duplicate_asset",
-		"Duplicate an asset to a new path.",
-		{
-			source_path: z.string().describe("Source asset path"),
-			destination_path: z.string().describe("Destination asset path"),
-		},
-		async ({ source_path, destination_path }) => {
-			manager.requireEditor();
-			const script = inlineScript(
-				`import unreal
-import json
-result = unreal.EditorAssetLibrary.duplicate_asset('{{source_path}}', '{{destination_path}}')
-print(json.dumps({"success": result is not None, "path": '{{destination_path}}' if result else None}))`,
-				{ source_path, destination_path },
-			);
-			const result = await manager.runPython(script);
-			return { content: [{ type: "text", text: result }] };
-		},
-	);
-
-	server.tool(
-		"delete_asset",
-		"Delete an asset. Checks for references first.",
-		{
-			asset_path: z.string().describe("Asset path to delete"),
-			force: z.boolean().default(false).describe("Delete even if referenced by other assets"),
-		},
-		async ({ asset_path, force }) => {
-			manager.requireEditor();
-			const script = inlineScript(
-				`import unreal
-import json
-registry = unreal.AssetRegistryHelpers.get_asset_registry()
-refs = registry.get_referencers('{{asset_path}}')
-ref_list = [str(r) for r in refs] if refs else []
-if ref_list and not ${force ? "True" : "False"}:
-    print(json.dumps({"error": "Asset has referencers", "referencers": ref_list, "hint": "Use force=true to delete anyway"}))
-else:
-    success = unreal.EditorAssetLibrary.delete_asset('{{asset_path}}')
-    print(json.dumps({"deleted": success}))`,
-				{ asset_path },
-			);
-			const result = await manager.runPython(script);
-			return { content: [{ type: "text", text: result }] };
-		},
-	);
-
-	server.tool(
 		"import_asset",
 		"Import an external file (FBX, PNG, WAV, etc.) into the project.",
 		{
@@ -275,11 +69,18 @@ print(json.dumps({"success": success, "output": '{{output_path}}'}))`,
 
 	server.tool(
 		"validate_assets",
-		"Run data validation on assets in a directory.",
+		"Run data validation on assets in a directory and return the actual results " +
+			"(pass/fail counts and a per-validator breakdown), not just a completion flag.",
 		{
 			directory: z.string().default("/Game").describe("Content directory to validate"),
+			limit: z
+				.number()
+				.int()
+				.positive()
+				.default(50)
+				.describe("Maximum number of assets to validate in one call (safety cap)"),
 		},
-		async ({ directory }) => {
+		async ({ directory, limit }) => {
 			manager.requireEditor();
 			const script = inlineScript(
 				`import unreal
@@ -287,49 +88,34 @@ import json
 subsys = unreal.get_editor_subsystem(unreal.EditorValidatorSubsystem)
 registry = unreal.AssetRegistryHelpers.get_asset_registry()
 assets = registry.get_assets_by_path('{{directory}}', True) or []
-asset_list = [a for a in assets[:50]]
-results = subsys.validate_assets_with_settings(
-    asset_list,
-    unreal.ValidateAssetsSettings(),
-    unreal.ValidateAssetsResults()
-)
-print(json.dumps({"validated": True}))`,
-				{ directory },
+asset_list = [a for a in assets[:{{limit}}]]
+# validate_assets_with_settings returns (return_code, ValidateAssetsResults) - it does
+# NOT accept a pre-built results object as a third argument on this engine version.
+_, results = subsys.validate_assets_with_settings(asset_list, unreal.ValidateAssetsSettings())
+validator_breakdown = {}
+for key in results.validator_statistics.keys():
+    stats = results.validator_statistics[key]
+    validated = stats.get_editor_property('assets_validated')
+    if validated:
+        validator_breakdown[str(key.asset_name)] = validated
+print(json.dumps({
+    "directory": '{{directory}}',
+    "num_requested": results.num_requested,
+    "num_checked": results.num_checked,
+    "num_valid": results.num_valid,
+    "num_invalid": results.num_invalid,
+    "num_warnings": results.num_warnings,
+    "num_skipped": results.num_skipped,
+    "num_unable_to_validate": results.num_unable_to_validate,
+    "asset_limit_reached": results.asset_limit_reached,
+    "validators_that_ran": validator_breakdown,
+}))`,
+				{ directory, limit },
 			);
 			const result = await manager.runPython(script);
 			return { content: [{ type: "text", text: result }] };
 		},
 	);
-
-	server.tool(
-		"save_asset",
-		"Force save a specific asset.",
-		{
-			asset_path: z.string().describe("Asset path to save"),
-		},
-		async ({ asset_path }) => {
-			manager.requireEditor();
-			const script = inlineScript(
-				`import unreal
-import json
-success = unreal.EditorAssetLibrary.save_asset('{{asset_path}}')
-print(json.dumps({"saved": success}))`,
-				{ asset_path },
-			);
-			const result = await manager.runPython(script);
-			return { content: [{ type: "text", text: result }] };
-		},
-	);
-
-	server.tool("save_all", "Save all dirty (modified) assets.", {}, async () => {
-		manager.requireEditor();
-		const script = `import unreal
-import json
-unreal.EditorLoadingAndSavingUtils.save_dirty_packages(True, True)
-print(json.dumps({"success": True}))`;
-		const result = await manager.runPython(script);
-		return { content: [{ type: "text", text: result }] };
-	});
 
 	server.tool(
 		"fix_redirectors",

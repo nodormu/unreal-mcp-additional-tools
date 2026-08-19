@@ -60,38 +60,6 @@ else:
 	);
 
 	server.tool(
-		"generate_lods",
-		"Generate LODs for a static mesh.",
-		{
-			mesh_path: z.string().describe("Static mesh asset path"),
-			lod_count: z.number().min(1).max(8).default(3).describe("Number of LOD levels"),
-		},
-		async ({ mesh_path, lod_count }) => {
-			manager.requireEditor();
-			const script = inlineScript(
-				`import unreal
-import json
-mesh = unreal.EditorAssetLibrary.load_asset('{{mesh_path}}')
-if mesh and isinstance(mesh, unreal.StaticMesh):
-    lib = unreal.EditorStaticMeshLibrary
-    options = unreal.EditorScriptingMeshReductionOptions()
-    for i in range(1, ${lod_count}):
-        reduction = unreal.EditorScriptingMeshReductionPerLODSettings()
-        reduction.percent_triangles = max(0.1, 1.0 - (i * 0.3))
-        options.reduction_options.append(reduction)
-    lib.set_lod_reduction_settings(mesh, ${lod_count - 1}, options)
-    unreal.EditorAssetLibrary.save_asset('{{mesh_path}}')
-    print(json.dumps({"success": True, "lods": ${lod_count}}))
-else:
-    print(json.dumps({"error": "StaticMesh not found: {{mesh_path}}"}))`,
-				{ mesh_path },
-			);
-			const result = await manager.runPython(script);
-			return { content: [{ type: "text", text: result }] };
-		},
-	);
-
-	server.tool(
 		"generate_collision",
 		"Generate collision for a static mesh.",
 		{

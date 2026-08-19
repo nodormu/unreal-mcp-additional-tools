@@ -69,28 +69,6 @@ print(json.dumps({"success": True, "hint": "Check Message Log for Map Check resu
 	});
 
 	server.tool(
-		"validate_data",
-		"Trigger the Data Validation framework on assets.",
-		{
-			directory: z.string().default("/Game").describe("Content directory to validate"),
-		},
-		async ({ directory }) => {
-			manager.requireEditor();
-			const script = inlineScript(
-				`import unreal
-import json
-subsys = unreal.get_editor_subsystem(unreal.EditorValidatorSubsystem)
-asset_paths = unreal.EditorAssetLibrary.list_assets('{{directory}}', recursive=True)
-count = min(len(asset_paths), 100)
-print(json.dumps({"validating": count, "directory": "{{directory}}"}))`,
-				{ directory },
-			);
-			const result = await manager.runPython(script);
-			return { content: [{ type: "text", text: result }] };
-		},
-	);
-
-	server.tool(
 		"run_gauntlet",
 		"Launch a Gauntlet test session via UAT. Runs tests in a full game instance.",
 		{
