@@ -2,8 +2,6 @@
 
 An MCP server that **complements Epic's official Unreal Engine MCP server** — **78 tools** across **14 subsystems** covering the areas Epic's server doesn't reach: build/cook/package, cinematics, Niagara, automation testing, source control, profiling, World Partition, and project-wide content maintenance.
 
-> **Beta** — This project is under active development and testing. Tools are being validated against UE 5.8.1. Some tools may not work as expected. Bug reports and contributions are welcome.
-
 Run it **alongside** Epic's official server. This repo has been deliberately deduplicated against it, so the two form a clean union with no functional overlap — see [Relationship to Epic's Official Server](#relationship-to-epics-official-server).
 
 > Forked from [sam-david/unreal-mcp](https://github.com/sam-david/unreal-mcp) (MIT). The upstream project is a general-purpose Unreal MCP server; this fork deduplicates its toolset against Epic's official server so both can be connected at once.
@@ -57,12 +55,12 @@ Entire domains were left fully intact because Epic has no equivalent:
 - Unreal Engine 5.x with editor open
 - **Python Editor Script Plugin** enabled (built-in) with **Enable Remote Execution** checked in its settings
 
-No custom C++ plugin required. This server works out of the box using Unreal's built-in Python and Remote Control plugins.
+That's it. All 78 tools reach the editor through Python Remote Execution, the Remote Control API, or a spawned UAT/UBT/commandlet subprocess — **no custom C++ plugin is required.**
 
 ### Install
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/unreal-mcp-additional-tools.git
+git clone https://github.com/nodormu/unreal-mcp-additional-tools.git
 cd unreal-mcp-additional-tools
 npm install
 npm run build
@@ -87,9 +85,9 @@ Then drop a `.unrealmcp.json` in each UE project:
 }
 ```
 
-### Add to Claude Desktop
+### Add to MCP Server
 
-Add to `%APPDATA%\Claude\claude_desktop_config.json` (Windows) or `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS):
+Here is an example configuration you can add to your MCP Client as an available MCP server to connect to:
 
 ```json
 {
@@ -125,6 +123,15 @@ Add to `%APPDATA%\Claude\claude_desktop_config.json` (Windows) or `~/Library/App
 | **world-partition** | 4 | List data layers, set data layer state, query loaded cells, configure streaming sources |
 | **editor-utils** | 7 | Run editor utility widgets/blueprints, generate collision and lightmap UVs, undo, redo, undo history |
 | **remote-control-presets** | 5 | List and inspect presets, get/set exposed properties, call exposed functions |
+
+## Resources
+
+Beyond the 78 tools, the server also exposes two read-only MCP resources:
+
+| URI | Contents |
+|-----|----------|
+| `unreal://project` | Current `projectPath`, `enginePath`, `platform`, `configuration`, and `enabledModules` |
+| `unreal://status` | Live transport status (`remoteControl`, `pythonExec`, `pluginBridge`, `editorRunning`) plus negotiated `pluginCapabilities` if the optional bridge plugin is connected |
 
 ## Architecture
 
@@ -165,11 +172,26 @@ Three-layer priority: CLI args > environment variables > config file > defaults.
 | `UNREAL_MCP_CONFIGURATION` | Development | Build configuration |
 | `UNREAL_MCP_MODULES` | all | Comma-separated list of modules to enable |
 
+> **Linux/macOS:** `UNREAL_MCP_ENGINE_PATH` auto-detection only probes common **Windows** install locations (`C:\Program Files\Epic Games\UE_<version>`, etc.) after reading `EngineAssociation` from your `.uproject` — it never finds a Linux or macOS install on its own. Set `UNREAL_MCP_ENGINE_PATH` explicitly on those platforms. `UNREAL_MCP_PLATFORM` also defaults to `Win64`; Linux users should set it to `Linux` (macOS: `Mac`) so `build_target`/`build_cook_run`/`package_project` target the right platform. The subprocess runner itself already knows how to locate `RunUAT.sh`, `UnrealBuildTool`, and the Linux/Mac `UnrealEditor` binary once `enginePath` points at a real install — only the auto-detect *guess* is Windows-only.
+
 ### CLI Arguments
 
 ```bash
 node dist/bin.js --project-path /path/to/project --engine-path /path/to/UE_5.8 --rc-port 30010
 ```
+
+Every config value has a matching flag:
+
+| Flag | Env var equivalent | Description |
+|------|---------------------|--------------|
+| `--project-path <path>` | `UNREAL_MCP_PROJECT_PATH` | Path to `.uproject` or project directory |
+| `--engine-path <path>` | `UNREAL_MCP_ENGINE_PATH` | UE engine install path |
+| `--rc-port <port>` | `UNREAL_MCP_RC_PORT` | Remote Control API port |
+| `--python-port <port>` | `UNREAL_MCP_PYTHON_PORT` | Python Remote Execution command port |
+| `--plugin-port <port>` | *(none)* | Port for the optional Plugin Bridge transport (default `55557`) — CLI-only, no env var reads this |
+| `--platform <platform>` | `UNREAL_MCP_PLATFORM` | Target platform for build/cook/package |
+| `--configuration <config>` | `UNREAL_MCP_CONFIGURATION` | Build configuration |
+| `--modules <csv>` | `UNREAL_MCP_MODULES` | Comma-separated list of modules to enable |
 
 ### Config File
 
@@ -178,11 +200,12 @@ Place `.unrealmcp.json` in your project directory or home directory:
 ```json
 {
   "projectPath": ".",
-  "platform": "Win64",
+  "platform": "Linux",
   "configuration": "Development",
   "enabledModules": ["console", "asset", "build", "sequencer", "niagara"]
 }
 ```
+(`platform` defaults to `Win64` if omitted — set it to match your actual OS, e.g. `Linux` or `Mac`, per the note above.)
 
 ## Unreal Editor Setup
 
@@ -197,9 +220,12 @@ Place `.unrealmcp.json` in your project directory or home directory:
 4. Restart the editor again
 
 **Still getting "No Unreal Editor nodes found"?**
-- **VPN/Tailscale users:** Tailscale's virtual network adapter can hijack multicast. Try temporarily disabling Tailscale, or disable the Tailscale network adapter in Windows Network Connections.
-- **Firewall:** Allow UDP port 6766 and TCP port 6776, or temporarily disable Windows Firewall to test.
-- **Multiple adapters:** WSL, Hyper-V, and VPN adapters can all cause multicast to bind to the wrong interface. Disabling unused adapters helps.
+- **VPN/Tailscale users:** Tailscale's virtual network adapter can hijack multicast. Try temporarily disabling Tailscale, or disable/remove its virtual network interface (Windows: Network Connections; Linux: `ip link show` to find `tailscale0` and `sudo ip link set tailscale0 down`; macOS: System Settings > Network).
+- **Firewall:** Allow UDP port 6766 and TCP port 6776.
+  - Windows: allow the ports in Windows Firewall, or temporarily disable it to test.
+  - Linux: `sudo ufw allow 6766/udp && sudo ufw allow 6776/tcp` (ufw) or the equivalent `firewall-cmd --add-port` rules (firewalld).
+  - macOS: System Settings > Network > Firewall, or `sudo pfctl` rules if you run a custom `pf` config.
+- **Multiple adapters:** WSL, Hyper-V, VPN adapters, and (on Linux) Docker/virtual bridge interfaces can all cause multicast to bind to the wrong interface. Disabling unused adapters helps.
 
 ### Optional (for Remote Control Preset tools)
 
@@ -231,7 +257,7 @@ npm run dev        # Watch-mode dev server
 npm run build      # Compile TypeScript
 npm run lint       # Biome linter
 npm run fmt        # Biome formatter
-npm test           # Run tests
+npm test           # Runs vitest — no test files exist yet, so this currently exits non-zero
 ```
 
 ## License

@@ -14,7 +14,7 @@ The toolset is deliberately deduplicated against Epic's official Unreal MCP serv
 npm run dev        # Watch-mode dev server (tsx)
 npm run build      # Compile TypeScript → dist/
 npm start          # Run compiled server
-npm test           # Run tests (vitest)
+npm test           # vitest — no test files exist yet, exits non-zero until some are added
 npm run lint       # Biome check src/
 npm run fmt        # Biome format --write src/
 ```
@@ -36,10 +36,10 @@ stdio (MCP protocol)
 |-----------|----------|------|----------|
 | RemoteControlClient | HTTP to UE Remote Control API | 30010 | Remote Control API plugin (built-in) |
 | PythonExecClient | UDP multicast discovery + inverted TCP | 6776 | Python Editor Script Plugin w/ Remote Execution |
-| PluginBridgeClient | TCP, length-prefixed JSON | 55557 | Optional C++ plugin for deep Blueprint/K2 access |
+| PluginBridgeClient | TCP, length-prefixed JSON | 55557 | Optional C++ plugin for deep Blueprint/K2 access — **not used by any tool today**, see Plugin Enhancement Layer below |
 | SubprocessRunner | Spawns UAT/UBT processes | N/A | Engine path only (no editor needed) |
 
-Tools gracefully degrade: plugin bridge → Python → Remote Control → subprocess. Not all transports need to be available.
+Of these four, three are live and independent — each tool module uses exactly one, not a chain across all of them. See Plugin Enhancement Layer below for the actual per-module breakdown and why the Plugin Bridge row above is unused today.
 
 ### Tool Modules (src/tools/)
 
