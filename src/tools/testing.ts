@@ -17,7 +17,6 @@ export function registerTestingTools(
 		},
 		async ({ filter }) => {
 			await manager.requireEditor();
-			const filterLine = filter ? `if '${filter}'.lower() in name.lower()` : "";
 			const script = `import unreal
 import json
 # Use console command to list tests
