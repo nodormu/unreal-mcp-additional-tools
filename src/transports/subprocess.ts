@@ -18,9 +18,17 @@ export interface SubprocessConfig {
 
 // Defense-in-depth: even without a shell, reject characters that have caused
 // argument-escaping bugs in platform process launchers (e.g. Windows .bat/.cmd
-// invocation, which still goes through cmd.exe internally). No legitimate
-// build argument (paths, target names, platform names) needs these characters.
+// invocation, which necessarily goes through cmd.exe — see resolveInvocation).
+// No legitimate build argument (paths, target names, platform names) needs
+// these characters.
 const UNSAFE_ARG_PATTERN = /[;&|`$<>\n\r]/;
+
+// Stricter rule for tokens routed through cmd.exe. Neither of these can be
+// neutralized by the double-quoting resolveInvocation() applies: cmd.exe
+// expands %VAR% even inside double quotes (with no in-quote escape available),
+// and an embedded double quote closes the quoting early. Neither appears in a
+// legitimate engine path or UAT argument, so reject rather than mangle.
+const CMD_UNSAFE_ARG_PATTERN = /[%"]/;
 
 function assertSafeArg(arg: string): void {
 	if (UNSAFE_ARG_PATTERN.test(arg)) {
@@ -30,6 +38,68 @@ function assertSafeArg(arg: string): void {
 			{ arg },
 		);
 	}
+}
+
+export interface SpawnInvocation {
+	file: string;
+	args: string[];
+	windowsVerbatimArguments: boolean;
+}
+
+/**
+ * Decide what to actually hand to `child_process.spawn()`.
+ *
+ * Everything except a Windows batch file is spawned directly with no shell, so
+ * arguments reach the OS as a verbatim argv array and shell metacharacters are
+ * never interpreted.
+ *
+ * Windows .bat/.cmd files are the exception, and they cannot simply be spawned:
+ * `CreateProcess` has no notion of batch files, so they only run via a command
+ * interpreter. Node used to hide that, but since the CVE-2024-27980 fix
+ * (v18.20.2 / v20.12.2 — the floor in package.json `engines`) `spawn()` refuses
+ * a .bat/.cmd outright with `EINVAL` unless the caller opts into a shell. This
+ * matters here because `getUATPath()` resolves `RunUAT.bat` on Windows, so
+ * every UAT-backed tool (build, cook, package, BuildCookRun, BuildGraph,
+ * GenerateProjectFiles, Gauntlet) goes down this path.
+ *
+ * `shell: true` would clear the EINVAL, but Node then space-joins the argv
+ * without quoting anything, which corrupts any argument containing a space —
+ * and `-project=<path>` routinely contains one. So invoke the interpreter
+ * explicitly and own the quoting instead: `cmd.exe /d /s /c`, each token
+ * individually double-quoted, the whole line wrapped in one more pair of quotes
+ * that `/s` strips before parsing, and `windowsVerbatimArguments` so Node
+ * doesn't re-quote on top. That is the same shape as Node's own `shell: true`
+ * path, minus its missing per-argument quoting.
+ */
+export function resolveInvocation(
+	command: string,
+	args: string[],
+	platform: string = process.platform,
+): SpawnInvocation {
+	const lower = command.toLowerCase();
+	const isBatchFile = platform === "win32" && (lower.endsWith(".bat") || lower.endsWith(".cmd"));
+
+	if (!isBatchFile) {
+		return { file: command, args, windowsVerbatimArguments: false };
+	}
+
+	const tokens = [command, ...args];
+	for (const token of tokens) {
+		if (CMD_UNSAFE_ARG_PATTERN.test(token)) {
+			throw new UnrealMcpError(
+				`Rejected unsafe subprocess token (cmd.exe cannot safely quote '%' or '"'): ${token}`,
+				"UNSAFE_ARGUMENT",
+				{ arg: token },
+			);
+		}
+	}
+
+	const commandLine = tokens.map((token) => `"${token}"`).join(" ");
+	return {
+		file: process.env.comspec || "cmd.exe",
+		args: ["/d", "/s", "/c", `"${commandLine}"`],
+		windowsVerbatimArguments: true,
+	};
 }
 
 /**
@@ -204,17 +274,18 @@ export class SubprocessRunner {
 			assertSafeArg(arg);
 		}
 
+		// Never `shell: true` — see resolveInvocation() for how Windows .bat/.cmd
+		// (i.e. RunUAT.bat) is handled without one.
+		const invocation = resolveInvocation(command, args);
+
 		return new Promise<SubprocessResult>((resolve, reject) => {
 			const startTime = Date.now();
 			const stdoutChunks: string[] = [];
 			const stderrChunks: string[] = [];
 
-			// No shell: args are passed directly to the OS process (argv array), so shell
-			// metacharacters in any argument are never interpreted. Node's built-in
-			// .bat/.cmd handling on Windows already invokes cmd.exe safely internally
-			// (requires Node >=20.12.2 / >=18.20.2 — see package.json engines).
-			const child = spawn(command, args, {
+			const child = spawn(invocation.file, invocation.args, {
 				stdio: ["pipe", "pipe", "pipe"],
+				windowsVerbatimArguments: invocation.windowsVerbatimArguments,
 			});
 
 			const timer = setTimeout(() => {
