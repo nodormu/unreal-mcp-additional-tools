@@ -1,5 +1,35 @@
+import type { Socket } from "node:dgram";
+import { networkInterfaces } from "node:os";
 import { RemoteExecution, RemoteExecutionConfig } from "unreal-remote-execution";
 import { PythonExecutionError, TimeoutError, UnrealMcpError } from "../utils/errors.js";
+
+/**
+ * Pick the outbound interface for multicast discovery pings.
+ *
+ * `unreal-remote-execution` passes the multicast *bind* address ("0.0.0.0") to
+ * `setMulticastInterface()`. Binding to 0.0.0.0 is required on Windows to receive
+ * multicast at all, but as an interface selector it leaves the choice to the OS —
+ * and on machines with extra adapters (Bluetooth PAN, Wi-Fi Direct, an unplugged
+ * NIC, WSL, Hyper-V, VPNs) Windows routinely picks a link-local 169.254.* adapter.
+ * The ping then leaves on an interface the editor is not listening on and
+ * discovery fails with "Could not find a node within the given time".
+ *
+ * Returns the first real external IPv4, skipping APIPA addresses. Override with
+ * UNREAL_MCP_MULTICAST_IFACE when auto-detection picks the wrong adapter.
+ */
+function resolveMulticastInterface(): string | undefined {
+	const override = process.env.UNREAL_MCP_MULTICAST_IFACE;
+	if (override) return override;
+
+	for (const addresses of Object.values(networkInterfaces())) {
+		for (const addr of addresses ?? []) {
+			if (addr.family === "IPv4" && !addr.internal && !addr.address.startsWith("169.254.")) {
+				return addr.address;
+			}
+		}
+	}
+	return undefined;
+}
 
 export interface PythonExecConfig {
 	host: string;
@@ -68,6 +98,14 @@ export class PythonExecClient {
 			await this.remote.start();
 			this._started = true;
 
+			this.applyMulticastInterface();
+
+			// `start()` only opens the broadcast socket — it does not emit any pings.
+			// The library registers discovered nodes exclusively while it is actively
+			// searching (see `updateRemoteNode`), so without this call `remoteNodes`
+			// stays empty forever and every discovery attempt times out.
+			this.remote.startSearchingForNodes();
+
 			// Wait for UE node discovery via UDP multicast
 			await new Promise<void>((resolve) => {
 				const maxWait = 5000;
@@ -89,6 +127,35 @@ export class PythonExecClient {
 			throw new UnrealMcpError(
 				`Failed to start Python Remote Execution: ${err}`,
 				"PYTHON_CONNECTION_FAILED",
+			);
+		}
+	}
+
+	/**
+	 * Point outbound multicast at a real interface once the broadcast socket is up.
+	 *
+	 * The library exposes no option for this, so we reach the socket through its
+	 * private field. Best-effort: discovery may still work on single-adapter hosts
+	 * if this fails, so never throw. Only the *outbound* interface is changed —
+	 * the bind address and group membership must stay on 0.0.0.0 or the pong is
+	 * never received.
+	 */
+	private applyMulticastInterface(): void {
+		const iface = resolveMulticastInterface();
+		if (!iface) return;
+
+		const socket = (
+			this.remote as unknown as {
+				broadcastConnection?: { broadcastSocket?: Socket };
+			}
+		).broadcastConnection?.broadcastSocket;
+
+		try {
+			socket?.setMulticastInterface(iface);
+		} catch (error) {
+			console.error(
+				`[unreal-mcp] Could not set multicast interface to ${iface}: ${error}. ` +
+					"Discovery may fail if this host has multiple network adapters.",
 			);
 		}
 	}
@@ -170,6 +237,11 @@ export class PythonExecClient {
 			this._commandReady = false;
 		}
 		if (this._started) {
+			try {
+				this.remote.stopSearchingForNodes();
+			} catch {
+				// Ignore
+			}
 			try {
 				await this.remote.stop();
 			} catch {
