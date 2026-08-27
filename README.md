@@ -279,6 +279,18 @@ Place `.unrealmcp.json` in your project directory or home directory:
 > narrow both this setting and the editor's own Multicast Bind Address to
 > `127.0.0.1`, restart the editor, and confirm discovery still finds a node before
 > relying on it.
+>
+> **If you're about to open a PR changing this default to `127.0.0.1`, please
+> test it on a real multi-NIC host first.** On this maintainer's own multi-NIC
+> Linux dev machine, narrowing only this server's side to `127.0.0.1` fails
+> cleanly (discovery finds zero nodes, every time). But actually running the
+> both-sides test described above — setting the editor's own Multicast Bind
+> Address to `127.0.0.1` and restarting the editor to match — has, every time
+> it's been attempted, crashed the editor itself (not just failed to find a
+> node). Neither result makes `127.0.0.1` look like a safer or more correct
+> default here. PRs proposing it are welcome if they include evidence it
+> behaves differently on your setup, but "it should just work on loopback"
+> alone isn't going to be enough — it hasn't held up empirically on this box.
 
 **Still getting "No Unreal Editor nodes found"?**
 - **VPN/Tailscale users:** Tailscale's virtual network adapter can hijack multicast. Try temporarily disabling Tailscale, or disable/remove its virtual network interface (Windows: Network Connections; Linux: `ip link show` to find `tailscale0` and `sudo ip link set tailscale0 down`; macOS: System Settings > Network).
