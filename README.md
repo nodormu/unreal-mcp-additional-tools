@@ -51,11 +51,11 @@ Entire domains were left fully intact because Epic has no equivalent:
 
 ### Prerequisites
 
-- Node.js >= 18
+- Node.js >= 20.12.2 (matches [`engines`](package.json) in `package.json`)
 - Unreal Engine 5.x with editor open
 - **Python Editor Script Plugin** enabled (built-in) with **Enable Remote Execution** checked in its settings
 
-That's it. All 81 tools reach the editor through Python Remote Execution, the Remote Control API, or a spawned UAT/UBT/commandlet subprocess — **no custom C++ plugin is required.**
+That's it. All 81 tools reach the editor through Python Remote Execution, the Remote Control API, or a spawned UAT/UBT/commandlet subprocess — **no custom C++ plugin is required.** If you happen to already run a bridge plugin, that's fine too and nothing conflicts — see [Transport Layers](#transport-layers).
 
 ### Install
 
@@ -155,6 +155,12 @@ Unreal Engine
 The server probes all transports on startup and tools degrade gracefully. Build tools run through the subprocess runner and don't need the editor open at all.
 
 The Plugin Bridge client and its `executeWithPluginFallback()` plugin-first/Python-fallback path remain in the codebase, but no tool currently routes through it — its only consumer was the `blueprint` module, which was removed during the dedupe against Epic's server. No C++ plugin ships with this repo.
+
+**Already running a bridge plugin?** One exists as a separate project: [unreal-mcp-bridge-plugin](https://github.com/nodormu/unreal-mcp-bridge-plugin_v0.1_ue5.8.1-linux_20260817) (v0.1, UE 5.8.1, Linux). Nothing here requires it, but if it's listening this server will find it during the startup probe, negotiate capabilities, and report `"pluginBridge": true` in `unreal://status` and `get_connection_status`.
+
+That `true` is worth reading precisely: it means the transport connected, **not** that anything is using it. Because no tool routes through the bridge today, installing the plugin doesn't change any tool's behavior — every call still goes over Python Remote Execution, Remote Control, or a subprocess exactly as it would without the plugin. The status flag and the negotiated `pluginCapabilities` are the only visible difference. Use `--plugin-port` if yours listens somewhere other than `55557`.
+
+The capabilities it advertises are Blueprint/K2 authoring commands (`create_blueprint`, `add_node`, `connect_nodes`, and similar) — which is precisely what the removed `blueprint` module consumed. So the plugin side of that pairing still works; it's this server's tools that are gone, deliberately, because Epic's official `BlueprintTools` covers the same ground. Run Epic's server alongside this one for Blueprint work.
 
 ## Configuration
 
