@@ -84,7 +84,12 @@ if mesh and isinstance(mesh, unreal.StaticMesh):
     elif '{{type}}' == 'capsule':
         lib.add_simple_collisions(mesh, unreal.ScriptingCollisionShapeType.CAPSULE)
     else:
-        lib.set_convex_decomposition_collisions(mesh, 4, 16)
+        # hull_count=4, max_hull_verts=16, hull_precision=100000 (matches the
+        # Static Mesh Editor's own "Auto Convex Collision" panel default -
+        # see Engine/Source/Editor/StaticMeshEditor/Private/StaticMeshEditorTools.cpp,
+        # DefaultHullPrecision). This function's 4th arg is required in this
+        # engine version; omitting it throws TypeError at call time.
+        lib.set_convex_decomposition_collisions(mesh, 4, 16, 100000)
     unreal.EditorAssetLibrary.save_asset('{{mesh_path}}')
     print(json.dumps({"success": True, "type": "{{type}}"}))
 else:
