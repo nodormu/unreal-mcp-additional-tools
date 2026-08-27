@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { ConnectionManager } from "../transports/connection-manager.js";
 import type { UnrealMcpConfig } from "../types.js";
 import { inlineScript } from "../utils/template.js";
+import { assertSafeFilename } from "../utils/validate.js";
 
 export function registerProfilingTools(
 	server: McpServer,
@@ -75,6 +76,7 @@ print(json.dumps({"executed": "stat {{stat}}"}))`,
 		},
 		async ({ filename }) => {
 			manager.requireEditor();
+			assertSafeFilename(filename);
 			const cmd = filename ? `csvprofile start ${filename}` : "csvprofile start";
 			const script = inlineScript(
 				`import unreal
