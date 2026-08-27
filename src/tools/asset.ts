@@ -256,7 +256,7 @@ print(json.dumps({"orphans": orphans, "orphan_count": len(orphans), "scanned": s
 
 	server.tool(
 		"find_circular_dependencies",
-		"Find dependency cycles that lead back to the given asset (A depends on B depends on ... depends on A).",
+		"Find dependency cycles that lead back to the given asset (A depends on B depends on ... depends on A). Reports the shortest cycle through each participating asset.",
 		{
 			asset_path: z.string().describe("Asset package path to check (e.g., /Game/Meshes/MyMesh)"),
 			max_depth: z
@@ -265,11 +265,37 @@ print(json.dumps({"orphans": orphans, "orphan_count": len(orphans), "scanned": s
 				.min(1)
 				.max(30)
 				.default(10)
-				.describe("Maximum dependency chain depth to search"),
+				.describe("Longest cycle to look for, counted in dependency hops"),
+			max_nodes: z
+				.number()
+				.int()
+				.min(1)
+				.max(20000)
+				.default(2000)
+				.describe("Cap on assets visited in each direction, to bound registry lookups"),
 		},
 		{ readOnlyHint: true },
-		async ({ asset_path, max_depth }) => {
+		async ({ asset_path, max_depth, max_nodes }) => {
 			await manager.requireEditor();
+			// Reachability in both directions, rather than enumerating paths.
+			//
+			// An asset X sits on a cycle through `start` exactly when start depends
+			// on X (forward, via get_dependencies) *and* X depends on start
+			// (backward, via get_referencers). Two breadth-first walks answer that
+			// directly, and their parent links reconstruct a concrete cycle path.
+			//
+			// The obvious alternative — depth-first path enumeration — is what this
+			// replaced, and it is hard to get right. Enumerating every simple cycle
+			// is exponential, so the previous version pruned with a `visited` set
+			// shared across all branches. That set was never unwound, so the first
+			// branch to reach an asset claimed it permanently and any cycle running
+			// through it via a later branch was dropped without a trace: for
+			// A->B->D->A and A->C->D->A, only the first was ever reported. Reporting
+			// "1 cycle" when there are 2 is worse than reporting neither.
+			//
+			// This walk is complete within max_depth and linear in assets visited.
+			// It reports one shortest cycle per participating asset rather than
+			// every distinct simple cycle — a stated bound, not a silent miss.
 			const script = inlineScript(
 				`import unreal
 import json
@@ -277,26 +303,75 @@ registry = unreal.AssetRegistryHelpers.get_asset_registry()
 opts = unreal.AssetRegistryDependencyOptions()
 start = '{{asset_path}}'
 max_depth = {{max_depth}}
+max_nodes = {{max_nodes}}
+
+def walk(expand, limit):
+    # parents[asset] = (asset it was reached from, hops from start)
+    parents = {start: (None, 0)}
+    frontier = [start]
+    depth = 0
+    truncated = False
+    while frontier and depth < limit:
+        depth += 1
+        nxt = []
+        for node in frontier:
+            for raw in (expand(node) or []):
+                s = str(raw)
+                if s in parents:
+                    continue
+                if len(parents) >= max_nodes:
+                    truncated = True
+                    break
+                parents[s] = (node, depth)
+                nxt.append(s)
+            if truncated:
+                break
+        if truncated:
+            break
+        frontier = nxt
+    return parents, truncated
+
+# Each leg of a cycle needs at least one hop, so neither can exceed max_depth - 1.
+forward, f_trunc = walk(lambda n: registry.get_dependencies(n, opts), max_depth - 1)
+backward, b_trunc = walk(lambda n: registry.get_referencers(n, opts), max_depth - 1)
+
+def chain(parents, node):
+    out = [node]
+    while parents[out[-1]][0] is not None:
+        out.append(parents[out[-1]][0])
+    return out
+
 cycles = []
-visited = set()
+if start in [str(d) for d in (registry.get_dependencies(start, opts) or [])]:
+    cycles.append([start, start])
+for node in forward:
+    if node == start or node not in backward:
+        continue
+    if forward[node][1] + backward[node][1] > max_depth:
+        continue
+    # chain(forward, X) runs X -> start, so reverse it for the start -> X leg;
+    # chain(backward, X) already runs X -> start in dependency order.
+    cycles.append(list(reversed(chain(forward, node))) + chain(backward, node)[1:])
 
-def dfs(path, chain, depth):
-    if depth > max_depth or len(cycles) >= 20:
-        return
-    deps = registry.get_dependencies(path, opts) or []
-    for d in deps:
-        d_str = str(d)
-        if d_str == start:
-            cycles.append(chain + [d_str])
-            continue
-        if d_str in chain or d_str in visited:
-            continue
-        visited.add(d_str)
-        dfs(d_str, chain + [d_str], depth + 1)
+seen = set()
+unique = []
+for c in sorted(cycles, key=len):
+    key = tuple(c)
+    if key in seen:
+        continue
+    seen.add(key)
+    unique.append(c)
 
-dfs(start, [start], 1)
-print(json.dumps({"start": start, "cycles": cycles, "cycle_count": len(cycles), "max_depth_searched": max_depth}, indent=2))`,
-				{ asset_path, max_depth },
+print(json.dumps({
+    "start": start,
+    "cycles": unique[:20],
+    "cycle_count": len(unique),
+    "cycles_omitted": max(0, len(unique) - 20),
+    "max_depth_searched": max_depth,
+    "assets_scanned": {"dependencies": len(forward), "referencers": len(backward)},
+    "truncated": f_trunc or b_trunc,
+}, indent=2))`,
+				{ asset_path, max_depth, max_nodes },
 			);
 			const result = await manager.runPython(script);
 			return { content: [{ type: "text", text: result }] };
