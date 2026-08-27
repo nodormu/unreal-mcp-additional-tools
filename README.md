@@ -241,22 +241,44 @@ Place `.unrealmcp.json` in your project directory or home directory:
 > same no-peer-authentication exposure, just on the editor's socket instead of this
 > server's — the same caution applies either way.
 >
-> `UNREAL_MCP_MULTICAST_BIND` / `--multicast-bind` let you narrow the discovery
-> socket's bind address (e.g. to `127.0.0.1`) on setups where you specifically want
-> to restrict *this server's own* discovery traffic to loopback, separately from
-> whatever the UE editor's own Multicast Bind Address setting above is doing. **Test
-> before relying on this**: UDP multicast group membership is interface-scoped, and
-> narrowing the bind address can silently break discovery entirely depending on your
-> OS and network setup. On any host with more than one active network path (a real
-> NIC alongside a VPN, virtual bridge, or similar), the discovery ping goes out a
-> real NIC (auto-selected — see `resolveMulticastInterface()`), while a
-> loopback-only bind joins the multicast group on `lo` only — so the reply from the
-> editor is never received on that interface, and `execute_python` silently falls
-> back to the slower Remote Control transport instead. This isn't fixable by also
-> pointing the outbound interface at loopback: the editor's own reply still leaves
-> over its own interface, not `lo`, so a loopback-only bind won't see it either way.
-> It only works on genuinely single-interface hosts (`lo` and nothing else active).
-> If you narrow this and discovery stops working, revert to the default.
+> `UNREAL_MCP_MULTICAST_BIND` / `--multicast-bind` let you narrow *this server's
+> own* discovery socket's bind address (e.g. to `127.0.0.1`) — separately from the
+> UE editor's own Multicast Bind Address setting above. These are two independent
+> per-side settings, and a loopback-only round trip needs **both** to agree on
+> `127.0.0.1` — narrowing only this server's side isn't enough on its own.
+>
+> **Why `0.0.0.0` stays the default here.** UDP multicast group membership is
+> interface-scoped: whichever interface a socket joins the group on is the only
+> interface it can receive replies on. On a genuinely single-NIC host, narrowing
+> both sides to loopback should work fine, since multicast delivers locally over
+> `lo` without ever leaving the machine. But on any host with more than one active
+> network path (a real NIC alongside a VPN, virtual bridge, WSL, etc.), the
+> outbound discovery ping goes out a real NIC (auto-selected — see
+> `resolveMulticastInterface()`), and — this is the part that isn't obvious — the
+> *editor's* reply is subject to the exact same constraint on its own side. Epic's
+> compiled-in engine default for the editor's Multicast Bind Address is actually
+> `127.0.0.1`, but real multi-NIC setups routinely have to override it to `0.0.0.0`
+> just to get discovery working at all (that's exactly what the 5.3+ note above is
+> describing). Once the editor's own setting is `0.0.0.0`, its reply leaves over
+> its own real interface too — so narrowing only this server's bind address to
+> loopback can't help, because the reply it's waiting for never travels over `lo`
+> in the first place. Confirmed on a real multi-NIC Linux host: narrowing this
+> server alone to `127.0.0.1` finds zero nodes, even when its outbound interface is
+> also forced to loopback to match. `0.0.0.0` is kept as the default because it's
+> the one value that works regardless of what the editor's own setting happens to
+> be, rather than requiring every host to first verify both sides agree on
+> loopback.
+>
+> **Running Epic's official Unreal MCP server alongside this one doesn't factor
+> into this at all.** Epic's server runs its own in-process HTTP listener
+> (typically port 8000) and never touches the Python Remote Execution multicast
+> group or ports — the only two parties in the bind-address question above are
+> this server's own client and the UE editor's Python Remote Execution socket.
+>
+> If you're on a genuinely single-NIC host and want to try loopback-only anyway:
+> narrow both this setting and the editor's own Multicast Bind Address to
+> `127.0.0.1`, restart the editor, and confirm discovery still finds a node before
+> relying on it.
 
 **Still getting "No Unreal Editor nodes found"?**
 - **VPN/Tailscale users:** Tailscale's virtual network adapter can hijack multicast. Try temporarily disabling Tailscale, or disable/remove its virtual network interface (Windows: Network Connections; Linux: `ip link show` to find `tailscale0` and `sudo ip link set tailscale0 down`; macOS: System Settings > Network).
