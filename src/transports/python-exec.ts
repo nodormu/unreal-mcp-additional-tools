@@ -154,8 +154,7 @@ export class PythonExecClient {
 			socket?.setMulticastInterface(iface);
 		} catch (error) {
 			console.error(
-				`[unreal-mcp] Could not set multicast interface to ${iface}: ${error}. ` +
-					"Discovery may fail if this host has multiple network adapters.",
+				`[unreal-mcp] Could not set multicast interface to ${iface}: ${error}. Discovery may fail if this host has multiple network adapters.`,
 			);
 		}
 	}
