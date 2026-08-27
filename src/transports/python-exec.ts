@@ -67,6 +67,32 @@ export class PythonExecClient {
 	}
 
 	async isAvailable(): Promise<boolean> {
+		// An already-open command connection is definitive proof of availability,
+		// independent of remoteNodes below. ensureCommandConnection() opens the
+		// command connection via `this.remote.openCommandConnection(nodes[0])`,
+		// which the underlying `unreal-remote-execution` library calls with its
+		// default `autoStopSearching=true` - and stopping the search wipes the
+		// library's internal discovered-node map entirely (`this.nodes = {}`,
+		// see its stopSearchingForNodes()). That's sane behavior for the library's
+		// own purpose (stop hunting for more nodes once you've picked one), but it
+		// means `remote.remoteNodes` is PERMANENTLY empty from the first successful
+		// execute() call onward for the rest of the process - even though the
+		// command connection keeps working perfectly for actual execute() calls,
+		// which never consult remoteNodes once connected (only
+		// `_commandReady && hasCommandConnection()`). Without this check,
+		// isAvailable() would report `false` forever after the very first real use,
+		// and - because get_connection_status's refreshStatus() unconditionally
+		// overwrites the shared cached status with isAvailable()'s result - every
+		// later execute_python call would then silently downgrade to the Remote
+		// Control HTTP fallback (different error semantics: script exceptions get
+		// swallowed and printed instead of thrown). Checking hasCommandConnection()
+		// first avoids all of that by reporting ground truth directly instead of
+		// relying on a signal the library only maintains pre-connection.
+		if (this._commandReady && this.remote.hasCommandConnection()) {
+			this._discoveryFailed = false;
+			return true;
+		}
+
 		try {
 			// If discovery failed recently, skip the slow 5s wait and return false
 			// Retry every 30 seconds in case the user enables Remote Execution
