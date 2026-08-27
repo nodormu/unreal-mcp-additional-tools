@@ -35,6 +35,8 @@ export interface PythonExecConfig {
 	host: string;
 	port: number;
 	timeout: number;
+	/** Bind address for the UDP multicast discovery socket. Defaults to 127.0.0.1. */
+	multicastBindAddress?: string;
 }
 
 /**
@@ -59,7 +61,7 @@ export class PythonExecClient {
 		const remoteConfig = new RemoteExecutionConfig(
 			0, // multicastTTL: local host only
 			["239.0.0.1", 6766], // multicastGroupEndpoint (UE default)
-			"0.0.0.0", // multicastBindAddress
+			config.multicastBindAddress || "127.0.0.1", // multicastBindAddress — loopback-only by default; only widen if UE and this process are split across network namespaces on the same host
 			[config.host, config.port], // commandEndpoint
 		);
 		this.remote = new RemoteExecution(remoteConfig);
