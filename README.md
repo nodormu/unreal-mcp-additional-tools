@@ -219,6 +219,23 @@ Place `.unrealmcp.json` in your project directory or home directory:
    - Verify Multicast Group Endpoint is `239.0.0.1:6766`
 4. Restart the editor again
 
+> **Security note — TCP command channel has no peer authentication.** This server's
+> own multicast bind address (the client side, not the editor setting above) is
+> currently hardcoded to `0.0.0.0`, not configurable — required for multicast
+> discovery to work at all on Windows, where `setMulticastInterface()` needs `0.0.0.0`
+> as the bind address (see the comment in `src/transports/python-exec.ts`). One
+> consequence: the TCP command channel this opens (port 6776, via the
+> `unreal-remote-execution` package) listens on every interface, and it accepts
+> whichever process connects to it first — it does not verify the connecting peer is
+> actually the UE Editor. This is a property of Epic's Python Remote Execution
+> protocol itself (no shared secret to authenticate with), not something fixable in
+> this server alone. This was **not theoretical**: during development, a leaked
+> test-harness process reconnected to port 6776 ahead of the real editor and the live
+> server's own connection-status cache went stale as a result (recovered instantly
+> once the stray process was killed, but the cached status didn't self-correct on its
+> own). Don't run this on a shared/multi-tenant machine, or a network you don't trust,
+> without being aware of this.
+
 **Still getting "No Unreal Editor nodes found"?**
 - **VPN/Tailscale users:** Tailscale's virtual network adapter can hijack multicast. Try temporarily disabling Tailscale, or disable/remove its virtual network interface (Windows: Network Connections; Linux: `ip link show` to find `tailscale0` and `sudo ip link set tailscale0 down`; macOS: System Settings > Network).
 - **Firewall:** Allow UDP port 6766 and TCP port 6776.
