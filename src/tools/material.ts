@@ -18,7 +18,7 @@ export function registerMaterialTools(
 			slot_index: z.number().default(0).describe("Material slot index"),
 		},
 		async ({ actor_name, material_path, slot_index }) => {
-			manager.requireEditor();
+			await manager.requireEditor();
 			const script = inlineScript(
 				`import unreal
 import json

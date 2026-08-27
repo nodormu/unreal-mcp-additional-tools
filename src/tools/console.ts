@@ -14,7 +14,7 @@ export function registerConsoleTools(
 		"Execute arbitrary Python code in the Unreal Editor's Python environment. Has access to the full `unreal` module.",
 		{ code: z.string().describe("Python code to execute in the editor") },
 		async ({ code }) => {
-			manager.requireEditor();
+			await manager.requireEditor();
 			const result = await manager.runPython(code);
 			return { content: [{ type: "text", text: result }] };
 		},
@@ -25,7 +25,7 @@ export function registerConsoleTools(
 		"Run a console command in the Unreal Editor (e.g., 'stat fps', 'stat unit', 'r.SetRes 1920x1080').",
 		{ command: z.string().describe("Console command to execute") },
 		async ({ command }) => {
-			manager.requireEditor();
+			await manager.requireEditor();
 			// Execute console command via Python
 			const script = inlineScript(
 				`import unreal\nunreal.SystemLibrary.execute_console_command(None, '{{command}}')`,

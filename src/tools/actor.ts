@@ -20,7 +20,7 @@ export function registerActorTools(
 				.describe("Offset for duplicated actors"),
 		},
 		async ({ names, offset }) => {
-			manager.requireEditor();
+			await manager.requireEditor();
 			const namesJson = JSON.stringify(names);
 			const script = inlineScript(
 				`import unreal
@@ -58,7 +58,7 @@ print(json.dumps({"duplicated": duplicated}))`,
 			tags: z.array(z.string()).describe("Tags to set"),
 		},
 		async ({ name, tags }) => {
-			manager.requireEditor();
+			await manager.requireEditor();
 			const tagsJson = JSON.stringify(tags);
 			const script = inlineScript(
 				`import unreal

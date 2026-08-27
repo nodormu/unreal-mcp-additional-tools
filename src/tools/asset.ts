@@ -19,7 +19,7 @@ export function registerAssetTools(
 				.describe("Content directory to import into (e.g., /Game/Meshes)"),
 		},
 		async ({ source_file, destination_path }) => {
-			manager.requireEditor();
+			await manager.requireEditor();
 			const script = inlineScript(
 				`import unreal
 import json
@@ -49,7 +49,7 @@ else:
 			output_path: z.string().describe("Output file path on disk"),
 		},
 		async ({ asset_path, output_path }) => {
-			manager.requireEditor();
+			await manager.requireEditor();
 			const script = inlineScript(
 				`import unreal
 import json
@@ -82,7 +82,7 @@ print(json.dumps({"success": success, "output": '{{output_path}}'}))`,
 		},
 		{ readOnlyHint: true },
 		async ({ directory, limit }) => {
-			manager.requireEditor();
+			await manager.requireEditor();
 			const script = inlineScript(
 				`import unreal
 import json
@@ -193,7 +193,7 @@ print(json.dumps({
 		},
 		{ destructiveHint: true },
 		async ({ target_path, source_paths }) => {
-			manager.requireEditor();
+			await manager.requireEditor();
 			const sourcePathsJson = JSON.stringify(source_paths);
 			const script = inlineScript(
 				`import unreal
@@ -229,7 +229,7 @@ else:
 		},
 		{ readOnlyHint: true },
 		async ({ directory, max_scan }) => {
-			manager.requireEditor();
+			await manager.requireEditor();
 			const script = inlineScript(
 				`import unreal
 import json
@@ -268,7 +268,7 @@ print(json.dumps({"orphans": orphans, "orphan_count": len(orphans), "scanned": s
 		},
 		{ readOnlyHint: true },
 		async ({ asset_path, max_depth }) => {
-			manager.requireEditor();
+			await manager.requireEditor();
 			const script = inlineScript(
 				`import unreal
 import json
@@ -318,7 +318,7 @@ print(json.dumps({"start": start, "cycles": cycles, "cycle_count": len(cycles), 
 		},
 		{ readOnlyHint: true },
 		async ({ asset_path, depth, max_children }) => {
-			manager.requireEditor();
+			await manager.requireEditor();
 			const script = inlineScript(
 				`import unreal
 import json

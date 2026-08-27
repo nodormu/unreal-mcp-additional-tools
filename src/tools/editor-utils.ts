@@ -16,7 +16,7 @@ export function registerEditorUtilsTools(
 			widget_path: z.string().describe("Editor Utility Widget asset path"),
 		},
 		async ({ widget_path }) => {
-			manager.requireEditor();
+			await manager.requireEditor();
 			const script = inlineScript(
 				`import unreal
 import json
@@ -41,7 +41,7 @@ else:
 			blueprint_path: z.string().describe("Editor Utility Blueprint asset path"),
 		},
 		async ({ blueprint_path }) => {
-			manager.requireEditor();
+			await manager.requireEditor();
 			const script = inlineScript(
 				`import unreal
 import json
@@ -70,7 +70,7 @@ else:
 				.describe("Collision type"),
 		},
 		async ({ mesh_path, type }) => {
-			manager.requireEditor();
+			await manager.requireEditor();
 			const script = inlineScript(
 				`import unreal
 import json
@@ -103,7 +103,7 @@ else:
 			mesh_path: z.string().describe("Static mesh asset path"),
 		},
 		async ({ mesh_path }) => {
-			manager.requireEditor();
+			await manager.requireEditor();
 			const script = inlineScript(
 				`import unreal
 import json
@@ -123,7 +123,7 @@ else:
 	);
 
 	server.tool("undo", "Undo the last editor action.", {}, async () => {
-		manager.requireEditor();
+		await manager.requireEditor();
 		const script = `import unreal
 import json
 success = unreal.SystemLibrary.execute_console_command(None, 'transaction undo')
@@ -133,7 +133,7 @@ print(json.dumps({"undone": True}))`;
 	});
 
 	server.tool("redo", "Redo the last undone editor action.", {}, async () => {
-		manager.requireEditor();
+		await manager.requireEditor();
 		const script = `import unreal
 import json
 success = unreal.SystemLibrary.execute_console_command(None, 'transaction redo')
@@ -149,7 +149,7 @@ print(json.dumps({"redone": True}))`;
 			count: z.number().default(20).describe("Number of recent transactions to return"),
 		},
 		async ({ count }) => {
-			manager.requireEditor();
+			await manager.requireEditor();
 			const script = `import unreal
 import json
 # Transaction history is accessible via GEditor->Trans

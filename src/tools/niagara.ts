@@ -23,7 +23,7 @@ export function registerNiagaraTools(
 			auto_destroy: z.boolean().default(true).describe("Auto-destroy when finished"),
 		},
 		async ({ system_path, location, rotation, auto_destroy }) => {
-			manager.requireEditor();
+			await manager.requireEditor();
 			const script = inlineScript(
 				`import unreal
 import json
@@ -54,7 +54,7 @@ else:
 			actor_name: z.string().describe("Actor name or label to attach to"),
 		},
 		async ({ system_path, actor_name }) => {
-			manager.requireEditor();
+			await manager.requireEditor();
 			const script = inlineScript(
 				`import unreal
 import json
@@ -95,7 +95,7 @@ else:
 			value: z.number().describe("Float value"),
 		},
 		async ({ actor_name, parameter_name, value }) => {
-			manager.requireEditor();
+			await manager.requireEditor();
 			const script = inlineScript(
 				`import unreal
 import json
@@ -127,7 +127,7 @@ else:
 			value: z.object({ x: z.number(), y: z.number(), z: z.number() }).describe("Vector value"),
 		},
 		async ({ actor_name, parameter_name, value }) => {
-			manager.requireEditor();
+			await manager.requireEditor();
 			const script = inlineScript(
 				`import unreal
 import json
@@ -161,7 +161,7 @@ else:
 				.describe("RGBA color (0-1)"),
 		},
 		async ({ actor_name, parameter_name, value }) => {
-			manager.requireEditor();
+			await manager.requireEditor();
 			const script = inlineScript(
 				`import unreal
 import json
@@ -193,7 +193,7 @@ else:
 			value: z.boolean().describe("Bool value"),
 		},
 		async ({ actor_name, parameter_name, value }) => {
-			manager.requireEditor();
+			await manager.requireEditor();
 			const script = inlineScript(
 				`import unreal
 import json
@@ -223,7 +223,7 @@ else:
 			actor_name: z.string().describe("Actor with Niagara component"),
 		},
 		async ({ actor_name }) => {
-			manager.requireEditor();
+			await manager.requireEditor();
 			const script = inlineScript(
 				`import unreal
 import json
@@ -253,7 +253,7 @@ else:
 			actor_name: z.string().describe("Actor with Niagara component"),
 		},
 		async ({ actor_name }) => {
-			manager.requireEditor();
+			await manager.requireEditor();
 			const script = inlineScript(
 				`import unreal
 import json
