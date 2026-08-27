@@ -390,35 +390,70 @@ print(json.dumps({
 				.min(1)
 				.max(100)
 				.default(20)
-				.describe("Maximum children to expand per node, to keep the tree bounded"),
+				.describe("Maximum children to expand per node"),
+			max_nodes: z
+				.number()
+				.int()
+				.min(1)
+				.max(20000)
+				.default(500)
+				.describe("Cap on total assets in the tree — the bound that actually keeps it small"),
 		},
 		{ readOnlyHint: true },
-		async ({ asset_path, depth, max_children }) => {
+		async ({ asset_path, depth, max_children, max_nodes }) => {
 			await manager.requireEditor();
+			// `depth` and `max_children` bound the tree's shape but not its size:
+			// they multiply, so the ceiling was max_children ** depth — up to 100**5
+			// assets, each costing a registry lookup, built synchronously on the
+			// editor's game thread and serialised into one JSON blob. Defaults
+			// (20 ** 2 = 400) were fine; the ceiling was not, and neither knob hints
+			// that raising it is dangerous. max_nodes is the joint bound the other
+			// two can't express. Sibling tools already cap absolutely (find_orphan_
+			// assets' max_scan, find_circular_dependencies' max_nodes); this one had
+			// no equivalent.
 			const script = inlineScript(
 				`import unreal
 import json
 registry = unreal.AssetRegistryHelpers.get_asset_registry()
 opts = unreal.AssetRegistryDependencyOptions()
 max_children = {{max_children}}
+max_nodes = {{max_nodes}}
+
+state = {"nodes": 0, "budget_hit": False}
 
 def build_tree(path, remaining_depth, seen):
+    state["nodes"] += 1
     if path in seen:
         return {"path": path, "cycle": True}
     if remaining_depth <= 0:
-        return {"path": path, "truncated": True}
+        return {"path": path, "truncated": "max_depth"}
     seen = seen | {path}
     deps = registry.get_dependencies(path, opts) or []
     dep_list = [str(d) for d in deps]
-    children = [build_tree(d, remaining_depth - 1, seen) for d in dep_list[:max_children]]
+    children = []
+    for d in dep_list[:max_children]:
+        # Checked before recursing, not inside the child, so the budget is a hard
+        # cap. Returning a marker from the child instead would still emit one node
+        # per pending sibling at every level of the stack as the recursion unwinds,
+        # overshooting by roughly depth * max_children.
+        if state["nodes"] >= max_nodes:
+            state["budget_hit"] = True
+            break
+        children.append(build_tree(d, remaining_depth - 1, seen))
     node = {"path": path, "children": children}
-    if len(dep_list) > max_children:
-        node["children_omitted"] = len(dep_list) - max_children
+    # Covers both cuts: deps beyond max_children, and any the budget stopped.
+    if len(dep_list) > len(children):
+        node["children_omitted"] = len(dep_list) - len(children)
     return node
 
 tree = build_tree('{{asset_path}}', {{depth}}, set())
-print(json.dumps(tree, indent=2))`,
-				{ asset_path, depth, max_children },
+print(json.dumps({
+    "tree": tree,
+    "nodes_emitted": state["nodes"],
+    "truncated": state["budget_hit"],
+    "max_nodes": max_nodes,
+}, indent=2))`,
+				{ asset_path, depth, max_children, max_nodes },
 			);
 			const result = await manager.runPython(script);
 			return { content: [{ type: "text", text: result }] };
