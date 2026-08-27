@@ -215,6 +215,44 @@ Place `.unrealmcp.json` in your project directory or home directory:
 ```
 (`platform` defaults to `Win64` if omitted — set it to match your actual OS, e.g. `Linux` or `Mac`, per the note above.)
 
+### Windows notes
+
+**Engine path auto-detection only covers default launcher installs.** It reads
+`EngineAssociation` from your `.uproject` and probes exactly three locations:
+`C:\Program Files\Epic Games\UE_<association>`, the `(x86)` variant, and
+`D:\Program Files\Epic Games\UE_<association>`. That works when the association
+is a version string like `5.8`. It does **not** cover:
+
+- **Source builds**, whose `EngineAssociation` is a GUID registered under
+  `HKEY_CURRENT_USER\Software\Epic Games\Unreal Engine\Builds`. No registry
+  lookup is performed, so the GUID is pasted straight into the paths above and
+  matches nothing.
+- Launcher installs on any other drive or directory.
+
+In either case pass `--engine-path` or set `UNREAL_MCP_ENGINE_PATH`. Without a
+resolved engine path, the 12 subprocess-backed tools fail with a
+`Cannot find RunUAT` / `Cannot find UnrealBuildTool` / `Cannot find UnrealEditor`
+error depending on which binary they need — that's the 8 spawning tools in
+**build**, the three commandlet-backed **asset** tools (`fix_redirectors`,
+`resave_packages`, `content_audit`), and `run_gauntlet`. Everything that talks
+to the running editor over Python or Remote Control is unaffected, as is
+`get_build_status`, which only parses a log you pass it.
+
+**Build arguments containing `%` or `"` are rejected.** Windows cannot execute
+`RunUAT.bat` directly — batch files only run through a command interpreter — so
+the subprocess runner invokes `cmd.exe /d /s /c` and quotes each argument
+itself. `cmd.exe` expands `%VAR%` even inside double quotes with no in-quote
+escape available, and an embedded `"` would terminate the quoting early, so an
+argument containing either is refused up front rather than silently mangled:
+
+```
+Rejected unsafe subprocess token (cmd.exe cannot safely quote '%' or '"')
+```
+
+This applies to your engine and project paths too. Paths containing **spaces**
+are fine — they are quoted correctly and round-trip intact. If a path contains a
+literal `%`, point `--engine-path` / `--project-path` somewhere without one.
+
 ## Unreal Editor Setup
 
 ### Required (for most tools)
