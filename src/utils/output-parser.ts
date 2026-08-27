@@ -1,5 +1,26 @@
 import type { BuildDiagnostic, ParsedBuildOutput } from "../types.js";
 
+/**
+ * Format a failed subprocess's captured output for display, without silently
+ * dropping whichever stream happens to be empty or shorter.
+ *
+ * `stderr || stdout` (the previous pattern at every one of these call sites)
+ * looks reasonable but is wrong whenever BOTH streams are non-empty: it shows
+ * only stderr and discards stdout entirely, even if the actually informative
+ * error is in stdout. This is not hypothetical — UnrealEditor commandlet runs
+ * routinely print an early, harmless warning to stderr (e.g. "Failed to find
+ * game directory: ...") while the real failure reason (e.g. "XCommandlet
+ * looked like a commandlet, but we could not find the class") goes to stdout
+ * moments later. `stderr || stdout` picked the harmless line and hid the real
+ * one. Show both when both exist, labeled, so nothing is silently lost.
+ */
+export function formatFailureOutput(result: { stdout: string; stderr: string }): string {
+	const stdout = result.stdout.trim();
+	const stderr = result.stderr.trim();
+	if (stdout && stderr) return `stderr:\n${stderr}\n\nstdout:\n${stdout}`;
+	return stderr || stdout;
+}
+
 // UBT/MSVC error format: file(line): error CODE: message
 const MSVC_ERROR_RE = /^(.+?)\((\d+)(?:,(\d+))?\)\s*:\s*error\s+(\w+)\s*:\s*(.+)$/;
 const MSVC_WARNING_RE = /^(.+?)\((\d+)(?:,(\d+))?\)\s*:\s*warning\s+(\w+)\s*:\s*(.+)$/;

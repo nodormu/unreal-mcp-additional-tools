@@ -2,6 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { ConnectionManager } from "../transports/connection-manager.js";
 import type { UnrealMcpConfig } from "../types.js";
+import { formatFailureOutput } from "../utils/output-parser.js";
 
 export function registerBuildTools(
 	server: McpServer,
@@ -183,7 +184,7 @@ export function registerBuildTools(
 						text:
 							result.exitCode === 0
 								? "Project files generated successfully."
-								: `Failed (exit ${result.exitCode}):\n${result.stderr || result.stdout}`,
+								: `Failed (exit ${result.exitCode}):\n${formatFailureOutput(result)}`,
 					},
 				],
 			};
@@ -235,7 +236,7 @@ export function registerBuildTools(
 						text:
 							result.exitCode === 0
 								? "Clean completed successfully."
-								: `Clean failed (exit ${result.exitCode}):\n${result.stderr || result.stdout}`,
+								: `Clean failed (exit ${result.exitCode}):\n${formatFailureOutput(result)}`,
 					},
 				],
 			};

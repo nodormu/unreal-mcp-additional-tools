@@ -2,6 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { ConnectionManager } from "../transports/connection-manager.js";
 import type { UnrealMcpConfig } from "../types.js";
+import { formatFailureOutput } from "../utils/output-parser.js";
 import { inlineScript } from "../utils/template.js";
 
 export function registerAssetTools(
@@ -132,7 +133,7 @@ print(json.dumps({
 						text:
 							result.exitCode === 0
 								? "Redirectors fixed successfully."
-								: `Failed (exit ${result.exitCode}):\n${result.stderr || result.stdout}`,
+								: `Failed (exit ${result.exitCode}):\n${formatFailureOutput(result)}`,
 					},
 				],
 			};
@@ -156,7 +157,7 @@ print(json.dumps({
 						text:
 							result.exitCode === 0
 								? "Packages resaved successfully."
-								: `Failed (exit ${result.exitCode}):\n${result.stderr || result.stdout}`,
+								: `Failed (exit ${result.exitCode}):\n${formatFailureOutput(result)}`,
 					},
 				],
 			};
@@ -177,7 +178,7 @@ print(json.dumps({
 						text:
 							result.exitCode === 0
 								? `Audit complete:\n${result.stdout}`
-								: `Failed (exit ${result.exitCode}):\n${result.stderr || result.stdout}`,
+								: `Failed (exit ${result.exitCode}):\n${formatFailureOutput(result)}`,
 					},
 				],
 			};

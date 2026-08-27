@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseBuildOutput } from "./output-parser.js";
+import { formatFailureOutput, parseBuildOutput } from "./output-parser.js";
 
 describe("parseBuildOutput", () => {
 	it("parses an MSVC error with line and column", () => {
@@ -101,5 +101,38 @@ describe("parseBuildOutput", () => {
 		expect(result.errors).toEqual([]);
 		expect(result.warnings).toEqual([]);
 		expect(result.succeeded).toBe(true);
+	});
+});
+
+describe("formatFailureOutput", () => {
+	it("shows both streams, labeled, when both are non-empty", () => {
+		const text = formatFailureOutput({
+			stdout:
+				"LogInit: Error: FooCommandlet looked like a commandlet, but we could not find the class.",
+			stderr: "Failed to find game directory: /some/path/Binaries",
+		});
+		expect(text).toContain("stderr:");
+		expect(text).toContain("Failed to find game directory");
+		expect(text).toContain("stdout:");
+		expect(text).toContain("FooCommandlet looked like a commandlet");
+	});
+
+	it("falls back to stdout alone when stderr is empty", () => {
+		const text = formatFailureOutput({ stdout: "the real error", stderr: "" });
+		expect(text).toBe("the real error");
+	});
+
+	it("falls back to stderr alone when stdout is empty", () => {
+		const text = formatFailureOutput({ stdout: "", stderr: "the real error" });
+		expect(text).toBe("the real error");
+	});
+
+	it("returns an empty string when both streams are empty", () => {
+		expect(formatFailureOutput({ stdout: "", stderr: "" })).toBe("");
+	});
+
+	it("ignores whitespace-only streams the same as empty ones", () => {
+		const text = formatFailureOutput({ stdout: "  \n  ", stderr: "real error" });
+		expect(text).toBe("real error");
 	});
 });
