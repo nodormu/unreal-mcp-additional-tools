@@ -9,7 +9,7 @@ const DEFAULTS: UnrealMcpConfig = {
 	remoteControlWsPort: 30020,
 	pythonExecPort: 6776,
 	pluginBridgePort: 55557,
-	multicastBindAddress: "127.0.0.1",
+	multicastBindAddress: "0.0.0.0",
 	platform: "Win64",
 	configuration: "Development",
 	enabledModules: [...ALL_MODULES],

@@ -168,6 +168,7 @@ Three-layer priority: CLI args > environment variables > config file > defaults.
 | `UNREAL_MCP_ENGINE_PATH` | auto-detect | UE engine install path |
 | `UNREAL_MCP_RC_PORT` | 30010 | Remote Control API port |
 | `UNREAL_MCP_PYTHON_PORT` | 6776 | Python Remote Execution port |
+| `UNREAL_MCP_MULTICAST_BIND` | `0.0.0.0` | Bind address for the UDP multicast discovery socket. Advanced/rarely needed — see the security note below before narrowing this. |
 | `UNREAL_MCP_PLATFORM` | Win64 | Target platform |
 | `UNREAL_MCP_CONFIGURATION` | Development | Build configuration |
 | `UNREAL_MCP_MODULES` | all | Comma-separated list of modules to enable |
@@ -188,6 +189,7 @@ Every config value has a matching flag:
 | `--engine-path <path>` | `UNREAL_MCP_ENGINE_PATH` | UE engine install path |
 | `--rc-port <port>` | `UNREAL_MCP_RC_PORT` | Remote Control API port |
 | `--python-port <port>` | `UNREAL_MCP_PYTHON_PORT` | Python Remote Execution command port |
+| `--multicast-bind <address>` | `UNREAL_MCP_MULTICAST_BIND` | Bind address for the UDP multicast discovery socket (default `0.0.0.0`) — advanced, see security note below |
 | `--plugin-port <port>` | *(none)* | Port for the optional Plugin Bridge transport (default `55557`) — CLI-only, no env var reads this |
 | `--platform <platform>` | `UNREAL_MCP_PLATFORM` | Target platform for build/cook/package |
 | `--configuration <config>` | `UNREAL_MCP_CONFIGURATION` | Build configuration |
@@ -220,21 +222,33 @@ Place `.unrealmcp.json` in your project directory or home directory:
 4. Restart the editor again
 
 > **Security note — TCP command channel has no peer authentication.** This server's
-> own multicast bind address (the client side, not the editor setting above) is
-> currently hardcoded to `0.0.0.0`, not configurable — required for multicast
-> discovery to work at all on Windows, where `setMulticastInterface()` needs `0.0.0.0`
-> as the bind address (see the comment in `src/transports/python-exec.ts`). One
-> consequence: the TCP command channel this opens (port 6776, via the
-> `unreal-remote-execution` package) listens on every interface, and it accepts
-> whichever process connects to it first — it does not verify the connecting peer is
-> actually the UE Editor. This is a property of Epic's Python Remote Execution
-> protocol itself (no shared secret to authenticate with), not something fixable in
-> this server alone. This was **not theoretical**: during development, a leaked
-> test-harness process reconnected to port 6776 ahead of the real editor and the live
-> server's own connection-status cache went stale as a result (recovered instantly
-> once the stray process was killed, but the cached status didn't self-correct on its
-> own). Don't run this on a shared/multi-tenant machine, or a network you don't trust,
-> without being aware of this.
+> own multicast bind address (the client side, not the editor setting above) defaults
+> to `0.0.0.0`, matching what `unreal-remote-execution` requires on Windows (where
+> `setMulticastInterface()` needs `0.0.0.0` as the bind address — see the comment in
+> `src/transports/python-exec.ts`). One consequence: the TCP command channel this
+> opens (port 6776, via the `unreal-remote-execution` package) listens on every
+> interface, and it accepts whichever process connects to it first — it does not
+> verify the connecting peer is actually the UE Editor. This is a property of Epic's
+> Python Remote Execution protocol itself (no shared secret to authenticate with),
+> not something fixable in this server alone. This was **not theoretical**: during
+> development, a leaked test-harness process reconnected to port 6776 ahead of the
+> real editor and the live server's own connection-status cache went stale as a
+> result (recovered instantly once the stray process was killed, but the cached
+> status didn't self-correct on its own). Don't run this on a shared/multi-tenant
+> machine, or a network you don't trust, without being aware of this.
+>
+> `UNREAL_MCP_MULTICAST_BIND` / `--multicast-bind` let you narrow the discovery
+> socket's bind address (e.g. to `127.0.0.1`) on setups where you specifically want
+> to restrict *this server's own* discovery traffic to loopback, separately from
+> whatever the UE editor's own Multicast Bind Address setting above is doing. **Test
+> before relying on this**: UDP multicast group membership is interface-scoped, and
+> narrowing the bind address can silently break discovery entirely depending on your
+> OS and network setup. Confirmed reproducible on Linux with more than one active
+> network path: the discovery ping goes out a real NIC (auto-selected — see
+> `resolveMulticastInterface()`), while a loopback-only bind joins the multicast
+> group on `lo` only, so the reply is never received and `execute_python` silently
+> falls back to the slower Remote Control transport instead. If you narrow this and
+> discovery stops working, revert to the default.
 
 **Still getting "No Unreal Editor nodes found"?**
 - **VPN/Tailscale users:** Tailscale's virtual network adapter can hijack multicast. Try temporarily disabling Tailscale, or disable/remove its virtual network interface (Windows: Network Connections; Linux: `ip link show` to find `tailscale0` and `sudo ip link set tailscale0 down`; macOS: System Settings > Network).

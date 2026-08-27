@@ -35,7 +35,19 @@ export interface PythonExecConfig {
 	host: string;
 	port: number;
 	timeout: number;
-	/** Bind address for the UDP multicast discovery socket. Defaults to 127.0.0.1. */
+	/**
+	 * Bind address for the UDP multicast discovery socket. Defaults to 0.0.0.0
+	 * (wildcard). Narrowing this to a specific address (e.g. 127.0.0.1) is
+	 * exposed for advanced/isolated setups via UNREAL_MCP_MULTICAST_BIND or
+	 * --multicast-bind, but is NOT the default and should not be enabled
+	 * without testing: multicast group membership is interface-scoped, and a
+	 * non-wildcard bind can silently break discovery entirely depending on
+	 * OS/network stack — confirmed reproducible on Linux hosts with more than
+	 * one active network path (the outbound discovery ping is sent via a real
+	 * NIC per applyMulticastInterface() below, while a loopback-only bind
+	 * joins the multicast group on `lo` only, so the reply is never seen).
+	 * See applyMulticastInterface()'s docstring for the mechanism.
+	 */
 	multicastBindAddress?: string;
 }
 
@@ -61,7 +73,7 @@ export class PythonExecClient {
 		const remoteConfig = new RemoteExecutionConfig(
 			0, // multicastTTL: local host only
 			["239.0.0.1", 6766], // multicastGroupEndpoint (UE default)
-			config.multicastBindAddress || "127.0.0.1", // multicastBindAddress — loopback-only by default; only widen if UE and this process are split across network namespaces on the same host
+			config.multicastBindAddress || "0.0.0.0", // multicastBindAddress — wildcard by default (required for reliable multicast group membership on most hosts); only narrow this if you've tested that discovery still works on your specific OS/network setup afterward
 			[config.host, config.port], // commandEndpoint
 		);
 		this.remote = new RemoteExecution(remoteConfig);
