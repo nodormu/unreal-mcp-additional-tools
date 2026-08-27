@@ -3,6 +3,9 @@ import { PythonExecutionError } from "../utils/errors.js";
 import { PluginBridgeClient } from "./plugin-bridge.js";
 import { PythonExecClient } from "./python-exec.js";
 import { RemoteControlClient } from "./remote-control.js";
+
+/** How long to wait before re-probing a Python transport knocked out by a failure. */
+const PYTHON_REPROBE_INTERVAL_MS = 15_000;
 import { SubprocessRunner } from "./subprocess.js";
 
 /**
@@ -24,6 +27,15 @@ export class ConnectionManager {
 
 	/** Timestamp of the last re-probe triggered by requireEditor(), for cooldown. */
 	private _lastEditorReprobe = 0;
+
+	/**
+	 * When runPython() knocked the Python transport out after a connection-level
+	 * failure, and so when it next becomes worth re-probing. `null` means the
+	 * transport is either healthy or was never available in the first place —
+	 * only a transport that *was* working and then broke gets retried here, so a
+	 * host with Remote Execution simply switched off never pays the probe cost.
+	 */
+	private _pythonInvalidatedAt: number | null = null;
 
 	async initialize(config: UnrealMcpConfig): Promise<void> {
 		// Initialize all transports
@@ -78,7 +90,42 @@ export class ConnectionManager {
 			editorRunning: rcAvailable || pythonAvailable,
 		};
 
+		if (pythonAvailable) this._pythonInvalidatedAt = null;
+
 		return this._status;
+	}
+
+	/**
+	 * Give a Python transport that runPython() previously invalidated a chance to
+	 * come back, before routing yet another call to the Remote Control fallback.
+	 *
+	 * Without this, one connection-level Python failure is permanent for the rest
+	 * of the session whenever Remote Control happens to be up: the catch block in
+	 * runPython() clears `pythonExec` but leaves `editorRunning` true (RC still
+	 * works), so requireEditor()'s fast path never re-probes, and runPython()'s
+	 * own `if (this._status.pythonExec)` gate means the transport is never tried
+	 * again. Every later call then silently takes the RC path, which has weaker
+	 * error semantics — script exceptions get swallowed and printed rather than
+	 * thrown. Only an explicit get_connection_status call would heal it.
+	 *
+	 * The cooldown keeps this cheap: a failed probe costs one discovery round,
+	 * and PythonExecClient.isAvailable() has its own 30s backoff on top, so a
+	 * genuinely dead editor is re-probed at most every 30s rather than on every
+	 * call.
+	 */
+	private async recoverPythonIfInvalidated(): Promise<void> {
+		if (this._status.pythonExec || this._pythonInvalidatedAt === null || !this.python) return;
+		if (Date.now() - this._pythonInvalidatedAt < PYTHON_REPROBE_INTERVAL_MS) return;
+
+		// Restart the cooldown regardless of the outcome, so a transport that
+		// stays down doesn't get probed on every single call.
+		this._pythonInvalidatedAt = Date.now();
+
+		if (await this.python.isAvailable().catch(() => false)) {
+			this._status.pythonExec = true;
+			this._status.editorRunning = true;
+			this._pythonInvalidatedAt = null;
+		}
 	}
 
 	get status(): ConnectionStatus {
@@ -134,6 +181,11 @@ export class ConnectionManager {
 	 * This is the primary method tools should use instead of calling manager.python.execute() directly.
 	 */
 	async runPython(code: string): Promise<string> {
+		// A Python transport invalidated by an earlier failure may have recovered
+		// (e.g. the editor was restarted). Nothing else re-probes it while RC is
+		// up, so check here before deciding which transport to use.
+		await this.recoverPythonIfInvalidated();
+
 		// Try Python Remote Execution first (full stdout capture)
 		if (this._status.pythonExec) {
 			try {
@@ -160,6 +212,9 @@ export class ConnectionManager {
 				// with a connection-typed error and invalidates then.)
 				this._status.pythonExec = false;
 				this._status.editorRunning = this._status.remoteControl;
+				// Mark this as a transport that *was* working, so
+				// recoverPythonIfInvalidated() will retry it later.
+				this._pythonInvalidatedAt = Date.now();
 				if (!this._status.remoteControl) throw error;
 				console.error(
 					`[unreal-mcp-additional-tools] Python exec connection failed, falling back to Remote Control: ${error}`,

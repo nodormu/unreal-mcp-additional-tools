@@ -187,3 +187,105 @@ describe("ConnectionManager.runPython status invalidation", () => {
 		await expect(manager.requireEditor()).rejects.toThrow(/not connected/i);
 	});
 });
+
+/**
+ * With Remote Control up, an invalidated Python transport is invisible to
+ * requireEditor() — `editorRunning` stays true, so its self-heal never fires and
+ * runPython()'s `if (this._status.pythonExec)` gate skips Python forever. These
+ * cover the separate re-probe that closes that gap.
+ */
+describe("ConnectionManager Python transport recovery", () => {
+	it("routes back to Python once an invalidated transport recovers", async () => {
+		let pythonAlive = true;
+		const pythonExecute = vi.fn(async () => {
+			if (!pythonAlive) throw new Error("editor closed");
+			return "from python";
+		});
+		const manager = makeManager({
+			pythonAvailable: async () => pythonAlive,
+			pythonExecute,
+			rcAvailable: async () => true,
+			rcExecutePython: async () => "from remote control",
+		});
+		await manager.refreshStatus();
+
+		vi.useFakeTimers();
+		try {
+			// A connection-level failure knocks Python out; RC covers the call.
+			pythonAlive = false;
+			expect(await manager.runPython("a")).toBe("from remote control");
+			expect(manager.status.pythonExec).toBe(false);
+
+			// Editor comes back, but the cooldown hasn't elapsed yet.
+			pythonAlive = true;
+			expect(await manager.runPython("b")).toBe("from remote control");
+			expect(manager.status.pythonExec).toBe(false);
+
+			await vi.advanceTimersByTimeAsync(15_001);
+
+			expect(await manager.runPython("c")).toBe("from python");
+			expect(manager.status.pythonExec).toBe(true);
+			expect(manager.status.editorRunning).toBe(true);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("does not re-probe a transport that was never available", async () => {
+		// Remote Execution simply switched off: nothing was ever invalidated, so
+		// no call should pay for a discovery probe it has no reason to expect.
+		const pythonAvailable = vi.fn(async () => false);
+		const manager = makeManager({
+			pythonAvailable,
+			rcAvailable: async () => true,
+			rcExecutePython: async () => "from remote control",
+		});
+		await manager.refreshStatus();
+		pythonAvailable.mockClear();
+
+		vi.useFakeTimers();
+		try {
+			for (const code of ["a", "b", "c"]) {
+				await vi.advanceTimersByTimeAsync(60_000);
+				expect(await manager.runPython(code)).toBe("from remote control");
+			}
+			expect(pythonAvailable).not.toHaveBeenCalled();
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("rate-limits the re-probe while Python stays down", async () => {
+		let pythonAlive = true;
+		const pythonAvailable = vi.fn(async () => pythonAlive);
+		const manager = makeManager({
+			pythonAvailable,
+			pythonExecute: async () => {
+				if (!pythonAlive) throw new Error("editor closed");
+				return "from python";
+			},
+			rcAvailable: async () => true,
+			rcExecutePython: async () => "from remote control",
+		});
+		await manager.refreshStatus();
+
+		// Reach the invalidated state the way real life does: a connection-level
+		// failure on a transport that was believed up.
+		pythonAlive = false;
+		expect(await manager.runPython("boom")).toBe("from remote control");
+		pythonAvailable.mockClear();
+
+		vi.useFakeTimers();
+		try {
+			// 20 calls spread over 40s, against a 15s cooldown: at most 3 probes.
+			for (let i = 0; i < 20; i++) {
+				await vi.advanceTimersByTimeAsync(2_000);
+				expect(await manager.runPython(`call${i}`)).toBe("from remote control");
+			}
+			expect(pythonAvailable.mock.calls.length).toBeLessThanOrEqual(3);
+			expect(pythonAvailable.mock.calls.length).toBeGreaterThan(0);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+});

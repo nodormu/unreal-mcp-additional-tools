@@ -107,16 +107,18 @@ export class PythonExecClient {
 			return true;
 		}
 
+		// Either we never connected, or a live connection has since dropped (the
+		// library nulls its socket on close, so hasCommandConnection() goes false
+		// as soon as the editor exits). Both cases need a fresh discovery round.
+		this._commandReady = false;
+
 		try {
 			// If discovery failed recently, skip the slow 5s wait and return false
 			// Retry every 30 seconds in case the user enables Remote Execution
 			if (this._discoveryFailed && Date.now() - this._lastDiscoveryAttempt < 30_000) {
 				return false;
 			}
-			if (!this._started) {
-				await this.ensureStarted();
-			}
-			const found = this.remote.remoteNodes.length > 0;
+			const found = await this.discoverNodes();
 			if (!found) {
 				this._discoveryFailed = true;
 				this._lastDiscoveryAttempt = Date.now();
@@ -139,29 +141,6 @@ export class PythonExecClient {
 			this._started = true;
 
 			this.applyMulticastInterface();
-
-			// `start()` only opens the broadcast socket — it does not emit any pings.
-			// The library registers discovered nodes exclusively while it is actively
-			// searching (see `updateRemoteNode`), so without this call `remoteNodes`
-			// stays empty forever and every discovery attempt times out.
-			this.remote.startSearchingForNodes();
-
-			// Wait for UE node discovery via UDP multicast
-			await new Promise<void>((resolve) => {
-				const maxWait = 5000;
-				const interval = 500;
-				let elapsed = 0;
-
-				const check = () => {
-					if (this.remote.remoteNodes.length > 0 || elapsed >= maxWait) {
-						resolve();
-						return;
-					}
-					elapsed += interval;
-					setTimeout(check, interval);
-				};
-				check();
-			});
 		} catch (err) {
 			this._started = false;
 			throw new UnrealMcpError(
@@ -169,6 +148,57 @@ export class PythonExecClient {
 				"PYTHON_CONNECTION_FAILED",
 			);
 		}
+	}
+
+	/**
+	 * Run a UDP multicast discovery round and report whether a node answered.
+	 *
+	 * This must re-run the *search*, not just re-read `remoteNodes`, and that is
+	 * the whole reason it exists as a separate step from ensureStarted(). Opening
+	 * a command connection calls the library's `stopSearchingForNodes()` (via
+	 * `autoStopSearching`), which does `this.nodes = {}` — and its
+	 * `updateRemoteNode()` only registers an incoming pong `if
+	 * (isSearchingForNodes())`. So once a command connection has been opened,
+	 * `remoteNodes` is empty forever and every later pong is discarded, until
+	 * something calls `startSearchingForNodes()` again. While that call only
+	 * happened inside the `_started`-gated ensureStarted(), a dropped connection
+	 * was unrecoverable for the life of the process: `isAvailable()` read an
+	 * empty node list and `ensureCommandConnection()` threw NO_UE_NODES, no
+	 * matter how healthy the editor was. Restarting the search here is what makes
+	 * reconnecting after an editor restart possible at all.
+	 *
+	 * `startSearchingForNodes()` also clears the node map and pings immediately,
+	 * so it is safe (and cheap) to call repeatedly.
+	 */
+	private async discoverNodes(): Promise<boolean> {
+		await this.ensureStarted();
+
+		this.remote.startSearchingForNodes();
+
+		await new Promise<void>((resolve) => {
+			const maxWait = 5000;
+			const interval = 500;
+			let elapsed = 0;
+
+			const check = () => {
+				if (this.remote.remoteNodes.length > 0 || elapsed >= maxWait) {
+					resolve();
+					return;
+				}
+				elapsed += interval;
+				setTimeout(check, interval);
+			};
+			check();
+		});
+
+		const found = this.remote.remoteNodes.length > 0;
+		if (!found) {
+			// Nothing answered, so stop the 1 Hz ping interval the search left
+			// running rather than broadcasting into the void until the process
+			// exits. The 30s retry above restarts it when it's worth trying again.
+			this.remote.stopSearchingForNodes();
+		}
+		return found;
 	}
 
 	/**
@@ -202,7 +232,26 @@ export class PythonExecClient {
 	private async ensureCommandConnection(): Promise<void> {
 		if (this._commandReady && this.remote.hasCommandConnection()) return;
 
+		// A connection we thought was live has dropped. Tear down the library's
+		// stale command-connection object before rediscovering, so the reopen
+		// below starts from a clean slate.
+		if (this._commandReady) {
+			this._commandReady = false;
+			try {
+				this.remote.closeCommandConnection();
+			} catch {
+				// Already gone — nothing to clean up.
+			}
+		}
+
 		await this.ensureStarted();
+
+		// Empty either because we've never discovered, or because a previous
+		// openCommandConnection() stopped the search and wiped the map. Either
+		// way the fix is the same: search again. See discoverNodes().
+		if (this.remote.remoteNodes.length === 0) {
+			await this.discoverNodes();
+		}
 
 		const nodes = this.remote.remoteNodes;
 		if (nodes.length === 0) {
