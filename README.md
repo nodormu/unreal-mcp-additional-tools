@@ -217,7 +217,7 @@ Place `.unrealmcp.json` in your project directory or home directory:
 2. Restart the editor
 3. Edit > Project Settings > Plugins > **Python** > scroll to **Remote Execution** section:
    - Check **Enable Remote Execution**
-   - **UE 5.3+ IMPORTANT:** Change **Multicast Bind Address** from `127.0.0.1` to `0.0.0.0` — Epic changed the default in 5.3 and it breaks external tools
+   - **UE 5.3+:** If discovery fails with the default, try changing **Multicast Bind Address** to `0.0.0.0` — Epic changed the default in 5.3 and it can break discovery on some setups (see the security note below before doing this on an untrusted network)
    - Verify Multicast Group Endpoint is `239.0.0.1:6766`
 4. Restart the editor again
 
@@ -235,7 +235,10 @@ Place `.unrealmcp.json` in your project directory or home directory:
 > real editor and the live server's own connection-status cache went stale as a
 > result (recovered instantly once the stray process was killed, but the cached
 > status didn't self-correct on its own). Don't run this on a shared/multi-tenant
-> machine, or a network you don't trust, without being aware of this.
+> machine, or a network you don't trust, without being aware of this. Widening the
+> *editor's own* Multicast Bind Address setting (the setup step above) carries the
+> same no-peer-authentication exposure, just on the editor's socket instead of this
+> server's — the same caution applies either way.
 >
 > `UNREAL_MCP_MULTICAST_BIND` / `--multicast-bind` let you narrow the discovery
 > socket's bind address (e.g. to `127.0.0.1`) on setups where you specifically want
