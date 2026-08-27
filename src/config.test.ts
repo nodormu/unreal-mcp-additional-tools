@@ -105,6 +105,12 @@ describe("loadConfig", () => {
 		const config = loadConfig([]);
 		expect(config.remoteControlPort).toBe(30010);
 		expect(config.pythonExecPort).toBe(6776);
+		// Deliberately the wildcard, not loopback — multicast group membership is
+		// interface-scoped on both ends of the handshake, so narrowing only this
+		// side breaks discovery on multi-NIC hosts. The rationale is documented in
+		// three places (types.ts, python-exec.ts, README); pin the value here so it
+		// can't drift out of sync with them again.
+		expect(config.multicastBindAddress).toBe("0.0.0.0");
 		expect(config.platform).toBe("Win64");
 		expect(config.configuration).toBe("Development");
 		expect(config.timeouts).toEqual({
