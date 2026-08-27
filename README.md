@@ -1,6 +1,6 @@
 # unreal-mcp-additional-tools
 
-An MCP server that **complements Epic's official Unreal Engine MCP server** — **78 tools** across **14 subsystems** covering the areas Epic's server doesn't reach: build/cook/package, cinematics, Niagara, automation testing, source control, profiling, World Partition, and project-wide content maintenance.
+An MCP server that **complements Epic's official Unreal Engine MCP server** — **81 tools** across **14 subsystems** covering the areas Epic's server doesn't reach: build/cook/package, cinematics, Niagara, automation testing, source control, profiling, World Partition, and project-wide content maintenance.
 
 Run it **alongside** Epic's official server. This repo has been deliberately deduplicated against it, so the two form a clean union with no functional overlap — see [Relationship to Epic's Official Server](#relationship-to-epics-official-server).
 
@@ -55,7 +55,7 @@ Entire domains were left fully intact because Epic has no equivalent:
 - Unreal Engine 5.x with editor open
 - **Python Editor Script Plugin** enabled (built-in) with **Enable Remote Execution** checked in its settings
 
-That's it. All 78 tools reach the editor through Python Remote Execution, the Remote Control API, or a spawned UAT/UBT/commandlet subprocess — **no custom C++ plugin is required.**
+That's it. All 81 tools reach the editor through Python Remote Execution, the Remote Control API, or a spawned UAT/UBT/commandlet subprocess — **no custom C++ plugin is required.**
 
 ### Install
 
@@ -105,13 +105,13 @@ Here is an example configuration you can add to your MCP Client as an available 
 
 ## Tool Modules
 
-78 tools across 14 modules. Module names below are the values accepted by `enabledModules` / `UNREAL_MCP_MODULES`.
+81 tools across 14 modules. Module names below are the values accepted by `enabledModules` / `UNREAL_MCP_MODULES`.
 
 | Module | Tools | Description |
 |--------|-------|-------------|
 | **console** | 3 | Execute Python, run console commands, check transport connection status |
 | **actor** | 2 | Duplicate actors, set actor tags |
-| **asset** | 7 | Import/export, data validation, fix redirectors, resave packages, content audit, consolidate duplicates |
+| **asset** | 10 | Import/export, data validation, fix redirectors, resave packages, content audit, consolidate duplicates, orphan-asset finder, circular-dependency detector, dependency tree |
 | **build** | 9 | Build targets, cook, package, BuildCookRun, build plugins, BuildGraph, generate project files, clean, parse build status |
 | **material** | 1 | Apply a material to a live actor's mesh component |
 | **sequencer** | 8 | Create sequences, inspect structure, bind actors, add tracks, playback range, framerate, FBX export, Movie Render Queue |
@@ -126,7 +126,7 @@ Here is an example configuration you can add to your MCP Client as an available 
 
 ## Resources
 
-Beyond the 78 tools, the server also exposes two read-only MCP resources:
+Beyond the 81 tools, the server also exposes two read-only MCP resources:
 
 | URI | Contents |
 |-----|----------|
@@ -230,12 +230,13 @@ Place `.unrealmcp.json` in your project directory or home directory:
 > interface, and it accepts whichever process connects to it first — it does not
 > verify the connecting peer is actually the UE Editor. This is a property of Epic's
 > Python Remote Execution protocol itself (no shared secret to authenticate with),
-> not something fixable in this server alone. This was **not theoretical**: during
-> development, a leaked test-harness process reconnected to port 6776 ahead of the
-> real editor and the live server's own connection-status cache went stale as a
-> result (recovered instantly once the stray process was killed, but the cached
-> status didn't self-correct on its own). Don't run this on a shared/multi-tenant
-> machine, or a network you don't trust, without being aware of this. Widening the
+> not something fixable in this server alone. In practice, this means any other
+> process on a reachable interface that connects to port 6776 before the real editor
+> does will be accepted as if it were the editor, and this server's connection-status
+> cache has no way to detect that after the fact — recovery requires noticing the
+> mismatch and terminating the stray process yourself. Don't run this on a
+> shared/multi-tenant machine, or a network you don't trust, without being aware of
+> this. Widening the
 > *editor's own* Multicast Bind Address setting (the setup step above) carries the
 > same no-peer-authentication exposure, just on the editor's socket instead of this
 > server's — the same caution applies either way.
@@ -246,12 +247,16 @@ Place `.unrealmcp.json` in your project directory or home directory:
 > whatever the UE editor's own Multicast Bind Address setting above is doing. **Test
 > before relying on this**: UDP multicast group membership is interface-scoped, and
 > narrowing the bind address can silently break discovery entirely depending on your
-> OS and network setup. Confirmed reproducible on Linux with more than one active
-> network path: the discovery ping goes out a real NIC (auto-selected — see
-> `resolveMulticastInterface()`), while a loopback-only bind joins the multicast
-> group on `lo` only, so the reply is never received and `execute_python` silently
-> falls back to the slower Remote Control transport instead. If you narrow this and
-> discovery stops working, revert to the default.
+> OS and network setup. On any host with more than one active network path (a real
+> NIC alongside a VPN, virtual bridge, or similar), the discovery ping goes out a
+> real NIC (auto-selected — see `resolveMulticastInterface()`), while a
+> loopback-only bind joins the multicast group on `lo` only — so the reply from the
+> editor is never received on that interface, and `execute_python` silently falls
+> back to the slower Remote Control transport instead. This isn't fixable by also
+> pointing the outbound interface at loopback: the editor's own reply still leaves
+> over its own interface, not `lo`, so a loopback-only bind won't see it either way.
+> It only works on genuinely single-interface hosts (`lo` and nothing else active).
+> If you narrow this and discovery stops working, revert to the default.
 
 **Still getting "No Unreal Editor nodes found"?**
 - **VPN/Tailscale users:** Tailscale's virtual network adapter can hijack multicast. Try temporarily disabling Tailscale, or disable/remove its virtual network interface (Windows: Network Connections; Linux: `ip link show` to find `tailscale0` and `sudo ip link set tailscale0 down`; macOS: System Settings > Network).
@@ -291,7 +296,7 @@ npm run dev        # Watch-mode dev server
 npm run build      # Compile TypeScript
 npm run lint       # Biome linter
 npm run fmt        # Biome formatter
-npm test           # Runs vitest — no test files exist yet, so this currently exits non-zero
+npm test           # Runs vitest in watch mode (add `-- run` for a single non-interactive pass, e.g. in CI)
 ```
 
 ## License
