@@ -66,7 +66,7 @@ function loadEnvVars(): Partial<UnrealMcpConfig> {
 	return config;
 }
 
-function parseCliArgs(argv: string[]): Partial<UnrealMcpConfig> {
+export function parseCliArgs(argv: string[]): Partial<UnrealMcpConfig> {
 	const config: Partial<UnrealMcpConfig> = {};
 
 	for (let i = 0; i < argv.length; i++) {
