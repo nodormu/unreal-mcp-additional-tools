@@ -78,7 +78,7 @@ if system:
     if target:
         comp = unreal.NiagaraFunctionLibrary.spawn_system_attached(
             system, target.root_component, '', unreal.Vector(0,0,0), unreal.Rotator(0,0,0),
-            unreal.EAttachLocation.KEEP_RELATIVE_OFFSET, True
+            unreal.AttachLocation.KEEP_RELATIVE_OFFSET, True
         )
         if comp:
             print(json.dumps({"success": True, "component": comp.get_name()}))
@@ -278,7 +278,7 @@ for a in actors:
     if a.get_name() == '{{actor_name}}' or a.get_actor_label() == '{{actor_name}}':
         comps = a.get_components_by_class(unreal.NiagaraComponent)
         if comps:
-            comps[0].reinit_system()
+            comps[0].reinitialize_system()
             print(json.dumps({"success": True}))
         else:
             print(json.dumps({"error": "No Niagara component found"}))

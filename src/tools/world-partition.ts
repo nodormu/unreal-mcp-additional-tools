@@ -26,7 +26,7 @@ if layers:
     for layer in all_layers:
         result.append({
             "name": layer.get_data_layer_short_name(),
-            "label": str(layer.get_data_layer_label()),
+            "full_name": str(layer.get_data_layer_full_name()),
             "is_runtime": layer.is_runtime(),
         })
     print(json.dumps(result, indent=2))

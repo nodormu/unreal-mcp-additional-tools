@@ -64,7 +64,7 @@ if seq:
             t = {"name": track.get_name(), "class": track.get_class().get_name()}
             b["tracks"].append(t)
         result["bindings"].append(b)
-    for track in movie_scene.get_master_tracks():
+    for track in seq.get_tracks():
         result["master_tracks"].append({"name": track.get_name(), "class": track.get_class().get_name()})
     print(json.dumps(result, indent=2))
 else:
