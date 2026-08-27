@@ -77,19 +77,19 @@ import json
 mesh = unreal.EditorAssetLibrary.load_asset('{{mesh_path}}')
 if mesh and isinstance(mesh, unreal.StaticMesh):
     lib = unreal.EditorStaticMeshLibrary
-    if '${type}' == 'box':
+    if '{{type}}' == 'box':
         lib.add_simple_collisions(mesh, unreal.ScriptingCollisionShapeType.BOX)
-    elif '${type}' == 'sphere':
+    elif '{{type}}' == 'sphere':
         lib.add_simple_collisions(mesh, unreal.ScriptingCollisionShapeType.SPHERE)
-    elif '${type}' == 'capsule':
+    elif '{{type}}' == 'capsule':
         lib.add_simple_collisions(mesh, unreal.ScriptingCollisionShapeType.CAPSULE)
     else:
         lib.set_convex_decomposition_collisions(mesh, 4, 16)
     unreal.EditorAssetLibrary.save_asset('{{mesh_path}}')
-    print(json.dumps({"success": True, "type": "${type}"}))
+    print(json.dumps({"success": True, "type": "{{type}}"}))
 else:
     print(json.dumps({"error": "StaticMesh not found: {{mesh_path}}"}))`,
-				{ mesh_path },
+				{ mesh_path, type },
 			);
 			const result = await manager.runPython(script);
 			return { content: [{ type: "text", text: result }] };

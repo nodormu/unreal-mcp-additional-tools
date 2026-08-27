@@ -31,14 +31,14 @@ else:
         if a.get_name() == '{{actor_name}}' or a.get_actor_label() == '{{actor_name}}':
             comps = a.get_components_by_class(unreal.MeshComponent)
             if comps:
-                comps[0].set_material(${slot_index}, material)
+                comps[0].set_material({{slot_index}}, material)
                 print(json.dumps({"success": True}))
             else:
                 print(json.dumps({"error": "No mesh component found"}))
             break
     else:
         print(json.dumps({"error": "Actor not found: {{actor_name}}"}))`,
-				{ actor_name, material_path },
+				{ actor_name, material_path, slot_index },
 			);
 			const result = await manager.runPython(script);
 			return { content: [{ type: "text", text: result }] };
