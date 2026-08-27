@@ -80,6 +80,7 @@ print(json.dumps({"success": success, "output": '{{output_path}}'}))`,
 				.default(50)
 				.describe("Maximum number of assets to validate in one call (safety cap)"),
 		},
+		{ readOnlyHint: true },
 		async ({ directory, limit }) => {
 			manager.requireEditor();
 			const script = inlineScript(
@@ -166,6 +167,7 @@ print(json.dumps({
 		"content_audit",
 		"Run content audit to find costly or problematic assets (runs ContentAudit commandlet).",
 		{},
+		{ readOnlyHint: true },
 		async () => {
 			const result = await manager.subprocess.runCommandlet("ContentAudit");
 			return {
@@ -189,6 +191,7 @@ print(json.dumps({
 			target_path: z.string().describe("Target asset path to keep"),
 			source_paths: z.array(z.string()).describe("Source asset paths to consolidate into target"),
 		},
+		{ destructiveHint: true },
 		async ({ target_path, source_paths }) => {
 			manager.requireEditor();
 			const sourcePathsJson = JSON.stringify(source_paths);
