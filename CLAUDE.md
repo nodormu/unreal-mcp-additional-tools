@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-An MCP (Model Context Protocol) server for Unreal Engine — 78 tools across 14 subsystems. TypeScript/Node.js, ESM, communicates with UE via four transport layers.
+An MCP (Model Context Protocol) server for Unreal Engine — 81 tools across 14 subsystems. TypeScript/Node.js, ESM, communicates with UE via four transport layers.
 
 The toolset is deliberately deduplicated against Epic's official Unreal MCP server so both can be connected at once. The `blueprint` (12 tools) and `plugin` (3 tools) modules were removed outright as strict subsets of Epic's `BlueprintTools`/`PluginToolset`; `actor`, `asset`, and `material` were trimmed to only what Epic lacks. When adding tools, check Epic's server first — don't reintroduce overlap. See README for the full dedupe rationale.
 
@@ -14,7 +14,7 @@ The toolset is deliberately deduplicated against Epic's official Unreal MCP serv
 npm run dev        # Watch-mode dev server (tsx)
 npm run build      # Compile TypeScript → dist/
 npm start          # Run compiled server
-npm test           # vitest — no test files exist yet, exits non-zero until some are added
+npm test           # vitest in watch mode; `npm test -- run` for a single non-interactive pass
 npm run lint       # Biome check src/
 npm run fmt        # Biome format --write src/
 ```
